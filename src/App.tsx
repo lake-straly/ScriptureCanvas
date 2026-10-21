@@ -866,41 +866,64 @@ export const App: React.FC = () => {
     };
   }, [roomCode, currentUser, handlePeerMessage]);
 
-  // Convert current private board into a live collaborative room
-  const handleStartCollaborativeRoom = useCallback(
-    (customCode?: string): string => {
-      const sanitizedCustom = customCode
-        ? customCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '-')
-        : '';
-      const words = ['GRACE', 'BEREAN', 'SELAH', 'SHALOM', 'LOGOS', 'AGAPE', 'ZION'];
-      const randomWord = words[Math.floor(Math.random() * words.length)];
-      const randomNum = Math.floor(100 + Math.random() * 900);
-      const nextCode = sanitizedCustom || `${randomWord}-${randomNum}`;
+  // Generate a collision-resistant 6-character alphanumeric room code
+  // combining timestamp, client ID hash, and Web Crypto CSPRNG entropy (36^6 = 2.17B combinations)
+  const handleStartCollaborativeRoom = useCallback((): string => {
+    const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const clientSeedStr = `${stateRef.current.currentUser.id}-${Date.now()}-${
+      typeof performance !== 'undefined' ? performance.now() : 0
+    }`;
 
-      try {
-        localStorage.setItem(
-          `scripture_study_room_${nextCode}`,
-          JSON.stringify({
-            nodes: stateRef.current.nodes,
-            connections: stateRef.current.connections,
-            roomTitle: stateRef.current.roomTitle,
-            pan,
-            zoom,
-            lastSaved: Date.now(),
-          })
-        );
-      } catch (e) {
-        console.warn('Could not persist converted room:', e);
+    // FNV-1a 32-bit hash of client identifier + high-res timestamp
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < clientSeedStr.length; i++) {
+      hash ^= clientSeedStr.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+
+    const randomWords = new Uint32Array(6);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(randomWords);
+    } else {
+      for (let i = 0; i < 6; i++) {
+        randomWords[i] = Math.floor(Math.random() * 0xffffffff);
       }
+    }
 
-      setRealPeers({});
-      setRoomCode(nextCode);
-      setConnectionState('ready');
-      showToast(`Live collaborative room #${nextCode} started!`, 'success');
-      return nextCode;
-    },
-    [pan, zoom, showToast]
-  );
+    const timeComponent = Date.now() >>> 0;
+    let nextCode = '';
+    for (let i = 0; i < 6; i++) {
+      // Mix cryptographic randomness with shifted time and client hash bits
+      const mixed =
+        (randomWords[i] ^
+          ((timeComponent >>> (i * 4)) & 0xff) ^
+          ((hash >>> (i * 5)) & 0xff)) >>>
+        0;
+      nextCode += alphabet[mixed % alphabet.length];
+    }
+
+    try {
+      localStorage.setItem(
+        `scripture_study_room_${nextCode}`,
+        JSON.stringify({
+          nodes: stateRef.current.nodes,
+          connections: stateRef.current.connections,
+          roomTitle: stateRef.current.roomTitle,
+          pan,
+          zoom,
+          lastSaved: Date.now(),
+        })
+      );
+    } catch (e) {
+      console.warn('Could not persist converted room:', e);
+    }
+
+    setRealPeers({});
+    setRoomCode(nextCode);
+    setConnectionState('ready');
+    showToast(`Live collaborative room #${nextCode} started!`, 'success');
+    return nextCode;
+  }, [pan, zoom, showToast]);
 
   // Join an existing collaborative room by code
   const handleJoinRoom = useCallback(

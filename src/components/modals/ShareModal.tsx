@@ -28,7 +28,7 @@ interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomCode: string;
-  onStartCollaborativeRoom: (customCode?: string) => string;
+  onStartCollaborativeRoom: () => string;
   onJoinRoom: (codeToJoin: string) => void;
   onLeaveRoom: () => void;
   currentUser: UserProfile;
@@ -69,7 +69,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     roomCode ? getRoomPassword(roomCode) || '' : ''
   );
   const [showPasswordSaved, setShowPasswordSaved] = useState(false);
-  const [customRoomInput, setCustomRoomInput] = useState('');
   const [joinRoomInput, setJoinRoomInput] = useState('');
 
   if (!isOpen) return null;
@@ -93,11 +92,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleCreateLiveRoom = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const activeCode = onStartCollaborativeRoom(customRoomInput.trim() || undefined);
+  const handleCreateLiveRoom = () => {
+    const activeCode = onStartCollaborativeRoom();
     setRoomPasswordState(getRoomPassword(activeCode) || '');
-    setCustomRoomInput('');
   };
 
   const handleJoinExistingRoom = (e: React.FormEvent) => {
@@ -182,39 +179,32 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Your workspace is currently private and offline from other users. Start a live room to generate a shareable link and study together in real time.
+                Your workspace is currently private and offline from other users. Click below to generate a unique 6-character room code and shareable link.
               </p>
-              <form onSubmit={handleCreateLiveRoom} className="flex flex-col sm:flex-row gap-2 pt-1">
-                <input
-                  type="text"
-                  value={customRoomInput}
-                  onChange={(e) => setCustomRoomInput(e.target.value)}
-                  placeholder="Optional custom room name (e.g. ROMANS-STUDY)"
-                  className="flex-1 px-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700/80 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono uppercase"
-                />
-                <button
-                  type="submit"
-                  className="py-2 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-sky-600/30 flex-shrink-0 cursor-pointer"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Start Live Room</span>
-                </button>
-              </form>
+              <button
+                type="button"
+                onClick={handleCreateLiveRoom}
+                className="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-sky-600/30 cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Create 6-Character Room Code & Go Live</span>
+              </button>
             </div>
 
             {/* Join Existing Room by Code */}
             <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
               <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Have a Room Code from a Friend?</span>
+                <span>Have a 6-Character Room Code from a Friend?</span>
               </label>
               <form onSubmit={handleJoinExistingRoom} className="flex gap-2">
                 <input
                   type="text"
+                  maxLength={12}
                   value={joinRoomInput}
-                  onChange={(e) => setJoinRoomInput(e.target.value)}
-                  placeholder="Enter room code (e.g. GRACE-412)"
-                  className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono uppercase"
+                  onChange={(e) => setJoinRoomInput(e.target.value.toUpperCase())}
+                  placeholder="Enter 6-character code (e.g. 7K4X9M)"
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono uppercase tracking-wider"
                 />
                 <button
                   type="submit"
