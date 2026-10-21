@@ -17,8 +17,7 @@ import type { CanvasState, UserProfile } from '../../types';
 import { 
   openTestCollaboratorWindow, 
   getRoomPassword, 
-  setRoomPassword,
-  hashPassword 
+  setRoomPassword 
 } from '../../services/multiplayer';
 
 interface ShareModalProps {
@@ -30,6 +29,7 @@ interface ShareModalProps {
   isSimulatingCollab: boolean;
   onToggleCollabSimulation: () => void;
   canvasState: CanvasState;
+  onPasswordChange?: (password: string) => void;
 }
 
 const COLOR_CHOICES = [
@@ -51,6 +51,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   isSimulatingCollab,
   onToggleCollabSimulation,
   canvasState,
+  onPasswordChange,
 }) => {
   const [copied, setCopied] = useState(false);
   const [tempName, setTempName] = useState(currentUser.name);
@@ -59,24 +60,16 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   if (!isOpen) return null;
 
-  const getInviteUrl = (withPassword = false) => {
+  const getInviteUrl = () => {
     const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set('room', roomCode);
-    if (roomPassword && roomPassword.trim()) {
-      if (withPassword) {
-        url.searchParams.set('pwd', encodeURIComponent(roomPassword.trim()));
-      } else {
-        url.searchParams.set('locked', '1');
-        url.searchParams.set('pwdHash', hashPassword(roomPassword.trim()));
-      }
-    }
     return url.toString();
   };
 
-  const inviteUrlString = getInviteUrl(false);
+  const inviteUrlString = getInviteUrl();
 
-  const handleCopyLink = (withPassword = false) => {
-    navigator.clipboard.writeText(getInviteUrl(withPassword));
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(getInviteUrl());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -90,7 +83,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   const handleSavePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    setRoomPassword(roomCode, roomPassword);
+    const cleanPwd = roomPassword.trim();
+    setRoomPassword(roomCode, cleanPwd);
+    onPasswordChange?.(cleanPwd);
     setShowPasswordSaved(true);
     setTimeout(() => setShowPasswordSaved(false), 2000);
   };
@@ -244,7 +239,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               {inviteUrlString}
             </div>
             <button
-              onClick={() => handleCopyLink(false)}
+              onClick={handleCopyLink}
               className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-md flex-shrink-0"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}

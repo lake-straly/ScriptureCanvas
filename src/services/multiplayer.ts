@@ -83,7 +83,29 @@ export function updateLocalUser(name: string, color?: string): UserProfile {
   return updated;
 }
 
-// Room Password Handling
+// Cryptographic Room Challenge-Response & Password Handling
+export async function computeAuthProof(challenge: string, password: string): Promise<string> {
+  const normalized = password.trim().toLowerCase();
+  const msg = `${challenge}:${normalized}`;
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(msg);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      // fallback if subtle crypto fails
+    }
+  }
+  let hash = 0;
+  for (let i = 0; i < msg.length; i++) {
+    hash = (hash << 5) - hash + msg.charCodeAt(i);
+    hash |= 0;
+  }
+  return 'fb_' + Math.abs(hash).toString(16);
+}
+
 export function hashPassword(password: string): string {
   try {
     return btoa(encodeURIComponent(password.trim()));
@@ -101,72 +123,59 @@ export function unhashPassword(hash: string): string | null {
 }
 
 export function getRoomPassword(roomCode: string): string | null {
+  if (typeof window === 'undefined') return null;
   const local = localStorage.getItem(`room_pwd_${roomCode}`);
   if (local) return local;
-
-  // Check URL query parameters (?pwd=... or ?pwdHash=...)
-  if (typeof window !== 'undefined') {
-    const p = new URLSearchParams(window.location.search);
-    const directPwd = p.get('pwd');
-    if (directPwd) {
-      return decodeURIComponent(directPwd);
-    }
-    const pwdHash = p.get('pwdHash');
-    if (pwdHash) {
-      return unhashPassword(pwdHash);
-    }
-  }
+  const session = sessionStorage.getItem(`room_pwd_${roomCode}`);
+  if (session) return session;
   return null;
 }
 
 export function setRoomPassword(roomCode: string, password: string): void {
-  if (!password.trim()) {
+  if (typeof window === 'undefined') return;
+  const trimmed = password.trim();
+  if (!trimmed) {
     localStorage.removeItem(`room_pwd_${roomCode}`);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('locked');
-      url.searchParams.delete('pwdHash');
-      url.searchParams.delete('pwd');
-      window.history.replaceState({}, '', url.toString());
-    }
+    sessionStorage.removeItem(`room_pwd_${roomCode}`);
+    sessionStorage.removeItem(`room_unlocked_${roomCode}`);
   } else {
-    localStorage.setItem(`room_pwd_${roomCode}`, password.trim());
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('locked', '1');
-      url.searchParams.set('pwdHash', hashPassword(password));
-      window.history.replaceState({}, '', url.toString());
-    }
+    localStorage.setItem(`room_pwd_${roomCode}`, trimmed);
+    sessionStorage.setItem(`room_unlocked_${roomCode}`, 'true');
   }
+
+  // Remove any legacy insecure query parameters from URL bar
+  const url = new URL(window.location.href);
+  url.searchParams.delete('locked');
+  url.searchParams.delete('pwdHash');
+  url.searchParams.delete('pwd');
+  window.history.replaceState({}, '', url.toString());
 }
 
 export function isRoomUnlocked(roomCode: string): boolean {
-  if (typeof window !== 'undefined') {
-    const p = new URLSearchParams(window.location.search);
-    const directPwd = p.get('pwd');
-    if (directPwd) {
-      sessionStorage.setItem(`room_unlocked_${roomCode}`, 'true');
-      return true;
-    }
+  if (typeof window === 'undefined') return true;
+  // If host already has the room password locally stored, or peer already unlocked this session
+  if (sessionStorage.getItem(`room_unlocked_${roomCode}`) === 'true') {
+    return true;
   }
-
   const setPwd = getRoomPassword(roomCode);
   if (!setPwd) {
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search);
-      if (p.get('locked') === '1') {
-        return sessionStorage.getItem(`room_unlocked_${roomCode}`) === 'true';
-      }
-    }
-    return true; // No password required
+    return true; // No password configured on this client
   }
-  return sessionStorage.getItem(`room_unlocked_${roomCode}`) === 'true';
+  return false;
+}
+
+export function markRoomUnlocked(roomCode: string, password?: string): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(`room_unlocked_${roomCode}`, 'true');
+  if (password && password.trim()) {
+    sessionStorage.setItem(`room_pwd_${roomCode}`, password.trim());
+  }
 }
 
 export function unlockRoom(roomCode: string, passwordAttempt: string): boolean {
   const setPwd = getRoomPassword(roomCode);
   if (!setPwd || setPwd.toLowerCase() === passwordAttempt.trim().toLowerCase()) {
-    sessionStorage.setItem(`room_unlocked_${roomCode}`, 'true');
+    markRoomUnlocked(roomCode, passwordAttempt);
     return true;
   }
   return false;
@@ -423,6 +432,51 @@ export class PeerSyncChannel {
       nodes,
       connections,
       title,
+      senderId: this.localUser.id,
+    });
+  }
+
+  public sendAuthChallenge(targetId: string, challenge: string): void {
+    this.broadcast({
+      type: 'AUTH_CHALLENGE',
+      challenge,
+      targetId,
+      senderId: this.localUser.id,
+    });
+  }
+
+  public sendAuthVerify(challenge: string, proof: string, targetId?: string): void {
+    this.broadcast({
+      type: 'AUTH_VERIFY',
+      challenge,
+      proof,
+      targetId,
+      senderId: this.localUser.id,
+      user: this.localUser,
+    });
+  }
+
+  public sendAuthSuccess(targetId: string): void {
+    this.broadcast({
+      type: 'AUTH_SUCCESS',
+      targetId,
+      senderId: this.localUser.id,
+    });
+  }
+
+  public sendAuthFail(targetId: string, error?: string): void {
+    this.broadcast({
+      type: 'AUTH_FAIL',
+      targetId,
+      error,
+      senderId: this.localUser.id,
+    });
+  }
+
+  public sendRoomLockStatus(isLocked: boolean): void {
+    this.broadcast({
+      type: 'ROOM_LOCK_STATUS',
+      isLocked,
       senderId: this.localUser.id,
     });
   }

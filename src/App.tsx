@@ -19,7 +19,10 @@ import {
   getLocalUser, 
   updateLocalUser, 
   PeerSyncChannel, 
-  isRoomUnlocked 
+  isRoomUnlocked,
+  getRoomPassword,
+  markRoomUnlocked,
+  computeAuthProof 
 } from './services/multiplayer';
 
 import { Navbar } from './components/ui/Navbar';
@@ -251,6 +254,13 @@ export const App: React.FC = () => {
   const [isSimulatingCollab, setIsSimulatingCollab] = useState(false);
   const [simulatedPeers, setSimulatedPeers] = useState<Collaborator[]>([]);
 
+  // Cryptographic Authentication & Gatekeeping Refs
+  const authorizedPeersRef = useRef<Set<string>>(new Set());
+  const pendingChallengeRef = useRef<{ challenge: string; senderId: string } | null>(null);
+  const authResolveRef = useRef<((success: boolean) => void) | null>(null);
+  const lastAttemptedPasswordRef = useRef<string>('');
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+
   const peerSyncRef = useRef<PeerSyncChannel | null>(null);
   const lastCursorSend = useRef<number>(0);
 
@@ -264,7 +274,7 @@ export const App: React.FC = () => {
   const seenMessagesRef = useRef<Set<string>>(new Set());
 
   // Handle incoming real-time peer messages
-  const handlePeerMessage = useCallback((msg: PeerMessage) => {
+  const handlePeerMessage = useCallback(async (msg: PeerMessage) => {
     if (msg.msgId) {
       if (seenMessagesRef.current.has(msg.msgId)) return;
       seenMessagesRef.current.add(msg.msgId);
@@ -277,6 +287,15 @@ export const App: React.FC = () => {
     switch (msg.type) {
       case 'PEER_JOIN': {
         if (msg.user.id === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd) {
+          // Room is locked by host: challenge incoming peer first before revealing canvas data
+          const challenge = Math.random().toString(36).substring(2) + Date.now().toString(36);
+          peerSyncRef.current?.sendAuthChallenge(msg.user.id, challenge);
+          break;
+        }
+
+        // Unlocked room: admit immediately
         setRealPeers((prev) => ({
           ...prev,
           [msg.user.id]: {
@@ -288,13 +307,124 @@ export const App: React.FC = () => {
             isOnline: true,
           },
         }));
-        // Reply with current canvas state so the newcomer syncs instantly
         peerSyncRef.current?.sendSyncResponse(
           msg.user.id,
           stateRef.current.nodes,
           stateRef.current.connections,
           stateRef.current.roomTitle
         );
+        break;
+      }
+
+      case 'AUTH_CHALLENGE': {
+        if (msg.targetId && msg.targetId !== stateRef.current.currentUser.id) return;
+        pendingChallengeRef.current = { challenge: msg.challenge, senderId: msg.senderId };
+
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd) {
+          // If we already possess the room password, respond with proof automatically
+          computeAuthProof(msg.challenge, localPwd).then((proof) => {
+            peerSyncRef.current?.sendAuthVerify(msg.challenge, proof, msg.senderId);
+          });
+        } else {
+          // Trigger password gate on newcomer's screen
+          setIsRoomLocked(true);
+        }
+        break;
+      }
+
+      case 'AUTH_VERIFY': {
+        if (msg.targetId && msg.targetId !== stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (!localPwd) {
+          // Room has no password
+          authorizedPeersRef.current.add(msg.senderId);
+          peerSyncRef.current?.sendAuthSuccess(msg.senderId);
+          if (msg.user) {
+            setRealPeers((prev) => ({
+              ...prev,
+              [msg.user!.id]: {
+                id: msg.user!.id,
+                name: msg.user!.name,
+                avatar: msg.user!.avatar,
+                color: msg.user!.color,
+                cursor: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+                isOnline: true,
+              },
+            }));
+          }
+          peerSyncRef.current?.sendSyncResponse(
+            msg.senderId,
+            stateRef.current.nodes,
+            stateRef.current.connections,
+            stateRef.current.roomTitle
+          );
+          return;
+        }
+
+        const expectedProof = await computeAuthProof(msg.challenge, localPwd);
+        if (msg.proof === expectedProof) {
+          authorizedPeersRef.current.add(msg.senderId);
+          peerSyncRef.current?.sendAuthSuccess(msg.senderId);
+          if (msg.user) {
+            setRealPeers((prev) => ({
+              ...prev,
+              [msg.user!.id]: {
+                id: msg.user!.id,
+                name: msg.user!.name,
+                avatar: msg.user!.avatar,
+                color: msg.user!.color,
+                cursor: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+                isOnline: true,
+              },
+            }));
+          }
+          // Now safely transmit board state
+          peerSyncRef.current?.sendSyncResponse(
+            msg.senderId,
+            stateRef.current.nodes,
+            stateRef.current.connections,
+            stateRef.current.roomTitle
+          );
+        } else {
+          peerSyncRef.current?.sendAuthFail(msg.senderId, 'Incorrect room password.');
+        }
+        break;
+      }
+
+      case 'AUTH_SUCCESS': {
+        if (msg.targetId && msg.targetId !== stateRef.current.currentUser.id) return;
+        setIsRoomLocked(false);
+        setAuthErrorMessage(null);
+        if (lastAttemptedPasswordRef.current) {
+          markRoomUnlocked(roomCode, lastAttemptedPasswordRef.current);
+        }
+        if (authResolveRef.current) {
+          authResolveRef.current(true);
+          authResolveRef.current = null;
+        }
+        peerSyncRef.current?.requestSync();
+        break;
+      }
+
+      case 'AUTH_FAIL': {
+        if (msg.targetId && msg.targetId !== stateRef.current.currentUser.id) return;
+        setAuthErrorMessage(msg.error || 'Incorrect room password. Please try again.');
+        if (authResolveRef.current) {
+          authResolveRef.current(false);
+          authResolveRef.current = null;
+        }
+        setIsRoomLocked(true);
+        break;
+      }
+
+      case 'ROOM_LOCK_STATUS': {
+        if (msg.isLocked) {
+          const localPwd = getRoomPassword(roomCode);
+          if (!localPwd) {
+            setIsRoomLocked(true);
+          }
+        }
         break;
       }
 
@@ -309,6 +439,9 @@ export const App: React.FC = () => {
 
       case 'PEER_HEARTBEAT': {
         if (msg.user.id === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.user.id)) return;
+
         setRealPeers((prev) => ({
           ...prev,
           [msg.user.id]: {
@@ -341,6 +474,9 @@ export const App: React.FC = () => {
 
       case 'NODE_MOVE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setNodes((prev) => {
           if (!prev[msg.nodeId]) return prev;
           return {
@@ -357,12 +493,18 @@ export const App: React.FC = () => {
 
       case 'NODE_ADD': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setNodes((prev) => ({ ...prev, [msg.node.id]: msg.node }));
         break;
       }
 
       case 'NODE_DELETE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setNodes((prev) => {
           const next = { ...prev };
           delete next[msg.nodeId];
@@ -376,18 +518,27 @@ export const App: React.FC = () => {
 
       case 'CONNECTION_ADD': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setConnections((prev) => [...prev.filter((c) => c.id !== msg.connection.id), msg.connection]);
         break;
       }
 
       case 'CONNECTION_DELETE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setConnections((prev) => prev.filter((c) => c.id !== msg.connectionId));
         break;
       }
 
       case 'HIGHLIGHT_UPDATE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setNodes((prev) => {
           const node = prev[msg.nodeId];
           if (!node || node.type !== 'scripture') return prev;
@@ -417,6 +568,9 @@ export const App: React.FC = () => {
 
       case 'STICKY_UPDATE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setNodes((prev) => {
           const node = prev[msg.nodeId];
           if (!node || node.type !== 'sticky') return prev;
@@ -434,6 +588,9 @@ export const App: React.FC = () => {
 
       case 'PROMPT_ANSWER': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setNodes((prev) => {
           const node = prev[msg.nodeId];
           if (!node || node.type !== 'prompt') return prev;
@@ -450,19 +607,28 @@ export const App: React.FC = () => {
 
       case 'TITLE_UPDATE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
         setRoomTitle(msg.title);
         break;
       }
 
       case 'SYNC_REQUEST': {
-        if (msg.senderId !== stateRef.current.currentUser.id) {
-          peerSyncRef.current?.sendSyncResponse(
-            msg.senderId,
-            stateRef.current.nodes,
-            stateRef.current.connections,
-            stateRef.current.roomTitle
-          );
+        if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) {
+          const challenge = Math.random().toString(36).substring(2) + Date.now().toString(36);
+          peerSyncRef.current?.sendAuthChallenge(msg.senderId, challenge);
+          break;
         }
+
+        peerSyncRef.current?.sendSyncResponse(
+          msg.senderId,
+          stateRef.current.nodes,
+          stateRef.current.connections,
+          stateRef.current.roomTitle
+        );
         break;
       }
 
@@ -475,7 +641,7 @@ export const App: React.FC = () => {
         break;
       }
     }
-  }, []);
+  }, [roomCode]);
 
   // Initialize Real-time PeerSyncChannel
   useEffect(() => {
@@ -496,6 +662,44 @@ export const App: React.FC = () => {
     const updated = updateLocalUser(name, color);
     setCurrentUser(updated);
   };
+
+  // Submit password handler for UnlockRoomModal
+  const handleSubmitPassword = useCallback(async (passwordAttempt: string): Promise<boolean> => {
+    lastAttemptedPasswordRef.current = passwordAttempt.trim();
+    setAuthErrorMessage(null);
+
+    // If an online host has challenged us via WebRTC:
+    if (pendingChallengeRef.current) {
+      const challenge = pendingChallengeRef.current.challenge;
+      const targetId = pendingChallengeRef.current.senderId;
+      const proof = await computeAuthProof(challenge, passwordAttempt.trim());
+
+      return new Promise<boolean>((resolve) => {
+        authResolveRef.current = resolve;
+        peerSyncRef.current?.sendAuthVerify(challenge, proof, targetId);
+
+        // Fallback timeout after 7 seconds if no response from host
+        setTimeout(() => {
+          if (authResolveRef.current === resolve) {
+            authResolveRef.current = null;
+            resolve(false);
+            setAuthErrorMessage('Host verification timed out. Please check that the host is online and try again.');
+          }
+        }, 7000);
+      });
+    }
+
+    // Local / offline host unlock
+    const local = getRoomPassword(roomCode);
+    if (!local || local.toLowerCase() === passwordAttempt.trim().toLowerCase()) {
+      markRoomUnlocked(roomCode, passwordAttempt.trim());
+      setIsRoomLocked(false);
+      return true;
+    }
+
+    setAuthErrorMessage('Incorrect password. Please try again.');
+    return false;
+  }, [roomCode]);
 
   // Broadcast cursor movements with throttle
   const handleCursorMove = (x: number, y: number) => {
@@ -1068,6 +1272,9 @@ export const App: React.FC = () => {
         onUpdateCurrentUser={handleUpdateCurrentUser}
         isSimulatingCollab={isSimulatingCollab}
         onToggleCollabSimulation={handleToggleCollabSimulation}
+        onPasswordChange={(pwd) => {
+          peerSyncRef.current?.sendRoomLockStatus(!!pwd);
+        }}
         canvasState={{
           nodes,
           connections,
@@ -1103,11 +1310,16 @@ export const App: React.FC = () => {
         onCenterCanvas={handleCenterCanvas}
       />
 
-      {/* Password Protection Gate */}
+      {/* Cryptographic Password Protection Gate */}
       <UnlockRoomModal
         isOpen={isRoomLocked}
         roomCode={roomCode}
-        onUnlocked={() => setIsRoomLocked(false)}
+        errorMessage={authErrorMessage}
+        onSubmitPassword={handleSubmitPassword}
+        onUnlocked={() => {
+          setIsRoomLocked(false);
+          setAuthErrorMessage(null);
+        }}
       />
     </div>
   );

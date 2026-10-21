@@ -166,6 +166,11 @@ export type PeerMessage = (
   | { type: 'TITLE_UPDATE'; title: string; senderId: string }
   | { type: 'SYNC_REQUEST'; senderId: string }
   | { type: 'SYNC_RESPONSE'; targetId: string; nodes: Record<string, CanvasNode>; connections: Connection[]; title: string; senderId: string }
+  | { type: 'AUTH_CHALLENGE'; challenge: string; senderId: string; targetId?: string }
+  | { type: 'AUTH_VERIFY'; challenge: string; proof: string; senderId: string; targetId?: string; user?: UserProfile }
+  | { type: 'AUTH_SUCCESS'; targetId: string; senderId: string }
+  | { type: 'AUTH_FAIL'; targetId: string; senderId: string; error?: string }
+  | { type: 'ROOM_LOCK_STATUS'; isLocked: boolean; senderId: string }
 ) & { msgId?: string };
 
 export interface CanvasState {
