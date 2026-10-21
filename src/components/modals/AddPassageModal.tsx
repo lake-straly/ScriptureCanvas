@@ -101,21 +101,21 @@ export const AddPassageModal: React.FC<AddPassageModalProps> = ({
 
   return (
     <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
-      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 flex flex-col gap-5 overflow-y-auto">
+      <div className="w-full flex-1 min-h-0 min-w-0 max-h-[90vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col gap-4 sm:gap-5 overflow-y-auto overflow-x-hidden break-words">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+        <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex-shrink-0">
               <BookOpen className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white tracking-wide">Add Scripture Passage</h2>
-              <p className="text-xs text-slate-400">Search any book, chapter, or verse range in any translation</p>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-white tracking-wide break-words">Add Scripture Passage</h2>
+              <p className="text-xs text-slate-400 break-words">Search any book, chapter, or verse range in any translation</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -126,34 +126,34 @@ export const AddPassageModal: React.FC<AddPassageModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('search')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2 transition-all ${
+            className={`flex-1 min-w-0 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'search'
                 ? 'bg-sky-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Search className="w-3.5 h-3.5" />
-            <span>Search Reference</span>
+            <Search className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">Search Reference</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('browse')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2 transition-all ${
+            className={`flex-1 min-w-0 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'browse'
                 ? 'bg-sky-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Compass className="w-3.5 h-3.5" />
-            <span>Browse Biblical Canon</span>
+            <Compass className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">Browse Biblical Canon</span>
           </button>
         </div>
 
         {/* Translation Selector Bar */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center justify-between flex-wrap gap-1 text-xs text-slate-400">
             <span className="font-semibold text-slate-300">Bible Translation:</span>
-            <span className="text-[11px] text-sky-400">
+            <span className="text-[11px] text-sky-400 break-words">
               {TRANSLATION_OPTIONS.find(t => t.id === translation)?.name} ({TRANSLATION_OPTIONS.find(t => t.id === translation)?.tag})
             </span>
           </div>
@@ -221,15 +221,15 @@ export const AddPassageModal: React.FC<AddPassageModalProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>Featured Scripture Studies</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {QUICK_SUGGESTIONS.map((item) => (
                   <button
                     key={item.ref}
                     onClick={() => handleSelectQuick(item.ref)}
                     disabled={isLoading}
-                    className="text-left p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-sky-500/50 hover:bg-slate-800/40 transition-all group"
+                    className="min-w-0 overflow-hidden text-left p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-sky-500/50 hover:bg-slate-800/40 transition-all group"
                   >
-                    <div className="text-xs font-semibold text-sky-300 group-hover:text-sky-200">
+                    <div className="text-xs font-semibold text-sky-300 group-hover:text-sky-200 truncate">
                       {item.ref}
                     </div>
                     <div className="text-[11px] text-slate-400 truncate mt-0.5">

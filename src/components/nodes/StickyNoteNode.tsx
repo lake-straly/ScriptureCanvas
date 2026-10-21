@@ -141,7 +141,7 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
 
       {/* Category Pill */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -166,12 +166,12 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
           onChange={(e) => setContent(e.target.value)}
           onBlur={handleBlur}
           rows={5}
-          className="w-full bg-transparent border-0 resize-none text-xs leading-relaxed focus:outline-none font-sans"
+          className="w-full bg-transparent border-0 resize-none text-xs leading-relaxed break-words focus:outline-none font-sans"
         />
       ) : (
         <div
           onDoubleClick={() => setIsEditing(true)}
-          className={`text-xs leading-relaxed whitespace-pre-wrap font-sans cursor-text min-h-[70px] ${style.text}`}
+          className={`text-xs leading-relaxed whitespace-pre-wrap break-words overflow-hidden font-sans cursor-text min-h-[70px] ${style.text}`}
         >
           {content || 'Double click to add note...'}
         </div>

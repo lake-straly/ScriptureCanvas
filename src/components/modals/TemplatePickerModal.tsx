@@ -18,7 +18,7 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
 
   return (
     <ResizableModal defaultWidth={680} onBackdropClick={onClose}>
-      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5 overflow-y-auto">
+      <div className="w-full flex-1 min-h-0 min-w-0 max-h-[90vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-4 sm:p-6 text-slate-100 space-y-5 overflow-y-auto overflow-x-hidden break-words">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">

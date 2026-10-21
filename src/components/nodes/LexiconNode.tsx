@@ -63,20 +63,20 @@ export const LexiconNode: React.FC<LexiconNodeProps> = ({
       </div>
 
       {/* Script & Transliteration */}
-      <div className="py-3 text-center border-b border-slate-800/80 bg-slate-950/40 rounded-xl my-2">
-        <div className="font-serif text-3xl font-bold text-amber-300 tracking-wider">
+      <div className="py-3 px-2 text-center border-b border-slate-800/80 bg-slate-950/40 rounded-xl my-2 overflow-hidden break-words">
+        <div className="font-serif text-3xl font-bold text-amber-300 tracking-wider break-words">
           {entry.original}
         </div>
-        <div className="text-xs font-medium text-slate-400 italic mt-0.5">
+        <div className="text-xs font-medium text-slate-400 italic mt-0.5 break-words">
           /{entry.transliteration}/
         </div>
-        <div className="text-[11px] text-slate-400 mt-1">
+        <div className="text-[11px] text-slate-400 mt-1 break-words">
           {entry.partOfSpeech} • {entry.occurrences}x in Scripture
         </div>
       </div>
 
       {/* Definition */}
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2 text-xs break-words">
         <div>
           <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
             Definition

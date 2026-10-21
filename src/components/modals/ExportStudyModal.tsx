@@ -76,7 +76,7 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
 
   return (
     <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
-      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full flex-1 min-h-0 min-w-0 max-h-[90vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col break-words">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center gap-2.5">
@@ -121,7 +121,7 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden space-y-4 flex-1 min-h-0 min-w-0">
           {activeTab === 'options' ? (
             <div className="space-y-3">
               {/* Markdown Download Card */}
@@ -129,19 +129,19 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
                 onClick={handleDownload}
                 className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 hover:bg-slate-950 transition-all cursor-pointer group flex items-start gap-3.5"
               >
-                <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 group-hover:scale-110 transition-transform">
+                <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 group-hover:scale-110 transition-transform flex-shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <h3 className="text-sm font-semibold text-slate-100 group-hover:text-sky-300 transition-colors">
                       Download Markdown (.md)
                     </h3>
-                    <span className="text-[10px] font-mono bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded flex-shrink-0">
                       Obsidian / Notion
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5 break-words">
                     Exports passages, highlights, Strong's Greek/Hebrew entries, commentaries, and connection links.
                   </p>
                 </div>
@@ -152,19 +152,19 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
                 onClick={handleCopy}
                 className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-500/50 hover:bg-slate-950 transition-all cursor-pointer group flex items-start gap-3.5"
               >
-                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition-transform">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition-transform flex-shrink-0">
                   {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <h3 className="text-sm font-semibold text-slate-100 group-hover:text-amber-300 transition-colors">
                       {copied ? 'Copied to Clipboard!' : 'Copy to Clipboard'}
                     </h3>
-                    <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded flex-shrink-0">
                       Paste Anywhere
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5 break-words">
                     Instantly copy structured study notes formatted for Google Docs, Word, or messaging apps.
                   </p>
                 </div>
@@ -175,26 +175,26 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
                 onClick={handlePrint}
                 className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 hover:bg-slate-950 transition-all cursor-pointer group flex items-start gap-3.5"
               >
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 transition-transform">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 transition-transform flex-shrink-0">
                   <Printer className="w-5 h-5" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <h3 className="text-sm font-semibold text-slate-100 group-hover:text-emerald-300 transition-colors">
                       Print / Save as PDF
                     </h3>
-                    <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded flex-shrink-0">
                       Study Handouts
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5 break-words">
                     Opens a clean, printable document view suitable for physical handouts or PDF saving.
                   </p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 flex-1 min-h-[260px] overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre-wrap select-text">
+            <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 flex-1 min-h-[260px] overflow-y-auto overflow-x-auto font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre-wrap break-words select-text">
               {markdownContent}
             </div>
           )}

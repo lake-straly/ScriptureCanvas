@@ -123,7 +123,7 @@ export const PromptNode: React.FC<PromptNodeProps> = ({
           value={newReply}
           onChange={(e) => setNewReply(e.target.value)}
           placeholder="Share your insight with the group..."
-          className="flex-1 px-3 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+          className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-indigo-500"
         />
         <button
           type="submit"

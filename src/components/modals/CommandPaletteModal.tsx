@@ -281,7 +281,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 
   return (
     <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
-      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full flex-1 min-h-0 min-w-0 max-h-[85vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col break-words">
         {/* Search Input Bar */}
         <div className="relative border-b border-slate-800 flex items-center px-4 py-3 bg-slate-950/90">
           <Search className="w-4 h-4 text-sky-400 mr-3 flex-shrink-0" />

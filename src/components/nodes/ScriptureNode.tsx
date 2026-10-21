@@ -207,7 +207,7 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
                 {/* Complete Verse text (NEVER truncated or cut off) */}
                 <div 
                   onClick={() => handleVerseClick(verse.verseNum)}
-                  className="flex-1 font-serif text-[15px] leading-relaxed text-slate-100 cursor-pointer"
+                  className="flex-1 min-w-0 break-words font-serif text-[15px] leading-relaxed text-slate-100 cursor-pointer"
                 >
                   {verse.text}
                 </div>
@@ -264,7 +264,7 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
 
               {/* Action Toolbar on Selected Verse */}
               {activeVerse === verse.verseNum && (
-                <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-sans pl-7">
+                <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2 text-xs font-sans pl-7">
                   {/* Highlighter color dots */}
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-slate-400 mr-1">Color:</span>

@@ -105,9 +105,9 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
           width: size.width ? `${Math.min(size.width, typeof window !== 'undefined' ? window.innerWidth - 24 : size.width)}px` : undefined,
           height: size.height ? `${Math.min(size.height, typeof window !== 'undefined' ? window.innerHeight - 24 : size.height)}px` : undefined,
           maxWidth: '96vw',
-          maxHeight: '94vh',
+          maxHeight: '92vh',
         }}
-        className={`relative flex flex-col ${className}`}
+        className={`relative flex flex-col min-w-0 min-h-0 overflow-hidden rounded-2xl ${className}`}
       >
         {children}
 

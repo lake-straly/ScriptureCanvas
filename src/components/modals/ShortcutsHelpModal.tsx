@@ -45,7 +45,7 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, 
 
   return (
     <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
-      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5 overflow-y-auto">
+      <div className="w-full flex-1 min-h-0 min-w-0 max-h-[90vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-4 sm:p-6 text-slate-100 space-y-5 overflow-y-auto overflow-x-hidden break-words">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -81,10 +81,10 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, 
                 {section.items.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-900/80 transition-colors text-xs"
+                    className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-900/80 transition-colors text-xs"
                   >
-                    <span className="text-slate-300">{item.desc}</span>
-                    <div className="flex items-center gap-1 flex-shrink-0 ml-3">
+                    <span className="text-slate-300 min-w-0 break-words">{item.desc}</span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {item.keys.map((k, kIdx) => (
                         <React.Fragment key={kIdx}>
                           <kbd className="px-2 py-0.5 text-[11px] font-mono font-semibold bg-slate-800 text-slate-200 rounded-md border border-slate-700 shadow-inner">
