@@ -37,9 +37,10 @@ import { WordLexiconDrawer } from './components/modals/WordLexiconDrawer';
 import { CommentaryDrawer } from './components/modals/CommentaryDrawer';
 import { TemplatePickerModal } from './components/modals/TemplatePickerModal';
 import { ShareModal } from './components/modals/ShareModal';
-import { UnlockRoomModal } from './components/modals/UnlockRoomModal';
 import { ExportStudyModal } from './components/modals/ExportStudyModal';
 import { CommandPaletteModal } from './components/modals/CommandPaletteModal';
+import { RoomConnectingScreen } from './components/ui/RoomConnectingScreen';
+import { RoomLockScreen } from './components/ui/RoomLockScreen';
 
 export const App: React.FC = () => {
   // Extract roomCode from URL search param e.g. ?room=FELLOWSHIP-777
@@ -92,8 +93,26 @@ export const App: React.FC = () => {
   // Local user guest profile
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => getLocalUser());
 
-  // Room Password Lock state
-  const [isRoomLocked, setIsRoomLocked] = useState(() => !isRoomUnlocked(roomCode));
+  // Connection & Room Security State ('connecting' | 'locked' | 'ready')
+  const [connectionState, setConnectionState] = useState<'connecting' | 'locked' | 'ready'>(() => {
+    const localPwd = getRoomPassword(roomCode);
+    if (localPwd) {
+      return isRoomUnlocked(roomCode) ? 'ready' : 'locked';
+    }
+    return 'connecting';
+  });
+
+  // Initial peer discovery & security challenge timer
+  useEffect(() => {
+    if (connectionState !== 'connecting') return;
+
+    // After 1.2s, if no host challenged us with a password, assume open/unlocked room
+    const timer = setTimeout(() => {
+      setConnectionState((curr) => (curr === 'connecting' ? 'ready' : curr));
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [connectionState]);
 
   // Canvas Viewport State (persisted across reloads, responsive initial zoom for mobile)
   const [pan, setPan] = useState(boardData.pan);
@@ -327,8 +346,8 @@ export const App: React.FC = () => {
             peerSyncRef.current?.sendAuthVerify(msg.challenge, proof, msg.senderId);
           });
         } else {
-          // Trigger password gate on newcomer's screen
-          setIsRoomLocked(true);
+          // Immediately switch full-page view to lock screen (canvas is NOT rendered)
+          setConnectionState('locked');
         }
         break;
       }
@@ -394,7 +413,6 @@ export const App: React.FC = () => {
 
       case 'AUTH_SUCCESS': {
         if (msg.targetId && msg.targetId !== stateRef.current.currentUser.id) return;
-        setIsRoomLocked(false);
         setAuthErrorMessage(null);
         if (lastAttemptedPasswordRef.current) {
           markRoomUnlocked(roomCode, lastAttemptedPasswordRef.current);
@@ -403,6 +421,7 @@ export const App: React.FC = () => {
           authResolveRef.current(true);
           authResolveRef.current = null;
         }
+        setConnectionState('ready');
         peerSyncRef.current?.requestSync();
         break;
       }
@@ -414,16 +433,18 @@ export const App: React.FC = () => {
           authResolveRef.current(false);
           authResolveRef.current = null;
         }
-        setIsRoomLocked(true);
+        setConnectionState('locked');
         break;
       }
 
       case 'ROOM_LOCK_STATUS': {
         if (msg.isLocked) {
           const localPwd = getRoomPassword(roomCode);
-          if (!localPwd) {
-            setIsRoomLocked(true);
+          if (!localPwd && !sessionStorage.getItem(`room_unlocked_${roomCode}`)) {
+            setConnectionState('locked');
           }
+        } else {
+          setConnectionState('ready');
         }
         break;
       }
@@ -637,6 +658,7 @@ export const App: React.FC = () => {
           setNodes(msg.nodes);
           setConnections(msg.connections);
           setRoomTitle(msg.title);
+          setConnectionState('ready');
         }
         break;
       }
@@ -693,7 +715,7 @@ export const App: React.FC = () => {
     const local = getRoomPassword(roomCode);
     if (!local || local.toLowerCase() === passwordAttempt.trim().toLowerCase()) {
       markRoomUnlocked(roomCode, passwordAttempt.trim());
-      setIsRoomLocked(false);
+      setConnectionState('ready');
       return true;
     }
 
@@ -1147,6 +1169,32 @@ export const App: React.FC = () => {
     peerSyncRef.current?.sendTitleUpdate(title);
   };
 
+  // 1. Connection & Security Verification Screen (Canvas is completely unmounted)
+  if (connectionState === 'connecting') {
+    return (
+      <RoomConnectingScreen
+        roomCode={roomCode}
+        onEnterDirectly={() => setConnectionState('ready')}
+      />
+    );
+  }
+
+  // 2. Full-Screen Password Protection Gate (Canvas is NOT in the DOM)
+  if (connectionState === 'locked') {
+    return (
+      <RoomLockScreen
+        roomCode={roomCode}
+        errorMessage={authErrorMessage}
+        onSubmitPassword={handleSubmitPassword}
+        onUnlocked={() => {
+          setConnectionState('ready');
+          setAuthErrorMessage(null);
+        }}
+      />
+    );
+  }
+
+  // 3. Authorized Canvas View (Only mounted when connectionState === 'ready')
   return (
     <div className="w-screen h-screen relative bg-slate-950 overflow-hidden font-sans select-none">
       {/* Top Navigation */}
@@ -1308,18 +1356,6 @@ export const App: React.FC = () => {
         onOpenCommentary={handleOpenCommentaryFromToolbar}
         onOpenExport={() => setIsExportModalOpen(true)}
         onCenterCanvas={handleCenterCanvas}
-      />
-
-      {/* Cryptographic Password Protection Gate */}
-      <UnlockRoomModal
-        isOpen={isRoomLocked}
-        roomCode={roomCode}
-        errorMessage={authErrorMessage}
-        onSubmitPassword={handleSubmitPassword}
-        onUnlocked={() => {
-          setIsRoomLocked(false);
-          setAuthErrorMessage(null);
-        }}
       />
     </div>
   );
