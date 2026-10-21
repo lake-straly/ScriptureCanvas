@@ -58,7 +58,7 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
         e.stopPropagation();
         onSelect();
       }}
-      className={`w-[calc(100vw-32px)] max-w-[520px] sm:w-[520px] rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl select-text ${
+      className={`w-[500px] rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl select-text ${
         isSelected
           ? 'border-sky-500 shadow-sky-500/15 ring-2 ring-sky-500/30'
           : 'border-slate-800 hover:border-slate-700'
@@ -179,6 +179,7 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
           return (
             <div
               key={verse.verseNum}
+              id={`verse-${node.id}-${verse.verseNum}`}
               className={`group relative rounded-xl p-2 transition-colors ${highlightClass} ${
                 activeVerse === verse.verseNum ? 'bg-slate-800/60 ring-1 ring-slate-700' : 'hover:bg-slate-800/40'
               }`}

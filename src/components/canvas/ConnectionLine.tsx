@@ -30,8 +30,26 @@ function getNodeBounds(node: CanvasNode): NodeBounds {
   let w = 300;
   let h = 220;
 
+  // 1. Dynamic DOM inspection (Exact untransformed canvas coordinate dimensions)
+  if (typeof document !== 'undefined') {
+    const el = document.getElementById(`node-${node.id}`);
+    if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
+      w = el.offsetWidth;
+      h = el.offsetHeight;
+      return {
+        x: node.x,
+        y: node.y,
+        w,
+        h,
+        cx: node.x + w / 2,
+        cy: node.y + h / 2,
+      };
+    }
+  }
+
+  // 2. Accurate default canvas-space dimensions
   if (node.type === 'scripture') {
-    w = 520;
+    w = 500;
     const count = node.passage?.verses?.length || 4;
     h = Math.min(Math.max(160 + count * 45, 260), 540);
   } else if (node.type === 'sticky') {
@@ -64,6 +82,25 @@ function getVerseOffsetY(node: CanvasNode, verseNum?: number): number | null {
   if (node.type !== 'scripture' || !verseNum || !node.passage?.verses) {
     return null;
   }
+
+  // 1. Dynamic DOM position of exact verse row
+  if (typeof document !== 'undefined') {
+    const verseEl = document.getElementById(`verse-${node.id}-${verseNum}`);
+    const nodeEl = document.getElementById(`node-${node.id}`);
+    if (verseEl && nodeEl) {
+      const vRect = verseEl.getBoundingClientRect();
+      const nRect = nodeEl.getBoundingClientRect();
+      if (nRect.height > 0 && nodeEl.offsetHeight > 0) {
+        const scale = nRect.width / nodeEl.offsetWidth;
+        const relativeY = (vRect.top - nRect.top + vRect.height / 2) / (scale || 1);
+        if (!isNaN(relativeY) && relativeY > 0 && relativeY < nodeEl.offsetHeight) {
+          return relativeY;
+        }
+      }
+    }
+  }
+
+  // 2. Mathematical row fallback
   const verses = node.passage.verses;
   const vIndex = verses.findIndex((v) => v.verseNum === verseNum);
   if (vIndex === -1) return null;

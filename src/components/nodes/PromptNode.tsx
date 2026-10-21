@@ -41,7 +41,7 @@ export const PromptNode: React.FC<PromptNodeProps> = ({
         e.stopPropagation();
         onSelect();
       }}
-      className={`w-[calc(100vw-32px)] max-w-[400px] sm:w-[400px] rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl p-4 select-text ${
+      className={`w-[400px] rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl p-4 select-text ${
         isSelected
           ? 'border-indigo-400 ring-2 ring-indigo-400/20 shadow-indigo-500/10'
           : 'border-slate-800 hover:border-slate-700'

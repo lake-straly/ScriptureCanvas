@@ -322,6 +322,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
           return (
             <div
               key={node.id}
+              id={`node-${node.id}`}
               onMouseDown={(e) => handleNodeMouseDown(e, node)}
               onTouchStart={(e) => handleNodeTouchStart(e, node)}
               style={{
