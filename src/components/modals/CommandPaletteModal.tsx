@@ -13,6 +13,7 @@ import {
   WandSparkles,
   Keyboard
 } from 'lucide-react';
+import { ResizableModal } from '../ui/ResizableModal';
 import type { CanvasNode, ScriptureNodeData, StickyNoteData, LexiconNodeData } from '../../types';
 import { searchLexicon } from '../../data/lexiconData';
 
@@ -279,14 +280,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   };
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col"
-      >
+    <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
+      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
         {/* Search Input Bar */}
         <div className="relative border-b border-slate-800 flex items-center px-4 py-3 bg-slate-950/90">
           <Search className="w-4 h-4 text-sky-400 mr-3 flex-shrink-0" />
@@ -308,7 +303,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         </div>
 
         {/* Results List */}
-        <div className="max-h-96 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 min-h-[260px] max-h-[70vh] overflow-y-auto p-2 space-y-1">
           {items.length > 0 ? (
             items.map((item, index) => {
               const isSelected = index === selectedIndex;
@@ -365,6 +360,6 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </ResizableModal>
   );
 };

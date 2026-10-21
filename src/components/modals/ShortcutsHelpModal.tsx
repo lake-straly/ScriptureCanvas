@@ -1,5 +1,6 @@
 import React from 'react';
 import { Keyboard, X, MousePointer, Sparkles, Command } from 'lucide-react';
+import { ResizableModal } from '../ui/ResizableModal';
 
 interface ShortcutsHelpModalProps {
   isOpen: boolean;
@@ -43,14 +44,8 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, 
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
+      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5 overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -122,6 +117,6 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, 
           </div>
         </div>
       </div>
-    </div>
+    </ResizableModal>
   );
 };

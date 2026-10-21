@@ -12,6 +12,7 @@ import {
   BookOpen,
   Info
 } from 'lucide-react';
+import { ResizableDrawer } from '../ui/ResizableModal';
 import {
   AVAILABLE_COMMENTARIES,
   fetchChapterCommentary,
@@ -109,7 +110,10 @@ export const CommentaryDrawer: React.FC<CommentaryDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-lg md:max-w-xl bg-slate-900/98 border-l border-slate-800 shadow-2xl backdrop-blur-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200">
+    <ResizableDrawer
+      defaultWidth={560}
+      className="bg-slate-900/98 border-l border-slate-800 shadow-2xl backdrop-blur-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200"
+    >
       {/* Top Header */}
       <div className="p-5 border-b border-slate-800 bg-slate-950/80">
         <div className="flex items-center justify-between pb-3">
@@ -362,6 +366,6 @@ export const CommentaryDrawer: React.FC<CommentaryDrawerProps> = ({
           <ExternalLink className="w-3 h-3" />
         </a>
       </div>
-    </div>
+    </ResizableDrawer>
   );
 };

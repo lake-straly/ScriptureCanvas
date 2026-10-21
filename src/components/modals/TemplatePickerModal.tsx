@@ -1,6 +1,7 @@
 import { STUDY_TEMPLATES } from '../../data/templates';
 import type { StudyTemplate } from '../../data/templates';
 import { LayoutGrid, X, ArrowRight, Sparkles, PlusCircle } from 'lucide-react';
+import { ResizableModal } from '../ui/ResizableModal';
 
 interface TemplatePickerModalProps {
   isOpen: boolean;
@@ -16,8 +17,8 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5">
+    <ResizableModal defaultWidth={680} onBackdropClick={onClose}>
+      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5 overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -97,6 +98,6 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </ResizableModal>
   );
 };

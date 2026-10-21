@@ -8,6 +8,7 @@ import {
   X,
   BookOpen
 } from 'lucide-react';
+import { ResizableModal } from '../ui/ResizableModal';
 import type { CanvasNode, Connection } from '../../types';
 import { generateStudyMarkdown, downloadStudyMarkdown } from '../../services/exportMarkdown';
 
@@ -74,8 +75,8 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
+      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center gap-2.5">
@@ -193,7 +194,7 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
               </div>
             </div>
           ) : (
-            <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 max-h-96 overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre-wrap select-text">
+            <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 flex-1 min-h-[260px] overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre-wrap select-text">
               {markdownContent}
             </div>
           )}
@@ -213,6 +214,6 @@ export const ExportStudyModal: React.FC<ExportStudyModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </ResizableModal>
   );
 };

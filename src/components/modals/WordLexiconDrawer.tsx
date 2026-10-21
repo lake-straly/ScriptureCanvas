@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { LexiconEntry } from '../../types';
 import { LEXICON_DATABASE, searchLexicon } from '../../data/lexiconData';
 import { BookMarked, X, Plus, Sparkles, Search } from 'lucide-react';
+import { ResizableDrawer } from '../ui/ResizableModal';
 
 interface WordLexiconDrawerProps {
   isOpen: boolean;
@@ -32,7 +33,10 @@ export const WordLexiconDrawer: React.FC<WordLexiconDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-md bg-slate-900/98 border-l border-slate-800 shadow-2xl backdrop-blur-2xl p-6 flex flex-col justify-between animate-in slide-in-from-right duration-200">
+    <ResizableDrawer
+      defaultWidth={460}
+      className="bg-slate-900/98 border-l border-slate-800 shadow-2xl backdrop-blur-2xl p-6 flex flex-col justify-between animate-in slide-in-from-right duration-200"
+    >
       <div className="flex-1 overflow-y-auto pr-1">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -155,6 +159,6 @@ export const WordLexiconDrawer: React.FC<WordLexiconDrawerProps> = ({
           </button>
         </div>
       )}
-    </div>
+    </ResizableDrawer>
   );
 };

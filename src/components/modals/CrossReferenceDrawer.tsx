@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GitFork, X, Plus, Sparkles, BookOpen, Link, ArrowRight } from 'lucide-react';
+import { ResizableDrawer } from '../ui/ResizableModal';
 import { CROSS_REFERENCES } from '../../data/bibleData';
 import type { CrossReferenceRelation } from '../../data/bibleData';
 import type { ConnectionType } from '../../types';
@@ -59,7 +60,10 @@ export const CrossReferenceDrawer: React.FC<CrossReferenceDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-md bg-slate-900/98 border-l border-slate-800 shadow-2xl backdrop-blur-2xl p-6 flex flex-col justify-between animate-in slide-in-from-right duration-200">
+    <ResizableDrawer
+      defaultWidth={460}
+      className="bg-slate-900/98 border-l border-slate-800 shadow-2xl backdrop-blur-2xl p-6 flex flex-col justify-between animate-in slide-in-from-right duration-200"
+    >
       <div className="flex-1 overflow-y-auto pr-1">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -202,6 +206,6 @@ export const CrossReferenceDrawer: React.FC<CrossReferenceDrawerProps> = ({
         <BookOpen className="w-3.5 h-3.5 text-slate-400" />
         <span>Tip: Drag connection handles between cards to create visual thematic arcs.</span>
       </div>
-    </div>
+    </ResizableDrawer>
   );
 };

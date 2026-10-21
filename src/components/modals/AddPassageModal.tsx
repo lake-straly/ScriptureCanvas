@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Translation } from '../../types';
 import { Search, BookOpen, X, Sparkles, Loader2, Book, Compass, AlertCircle } from 'lucide-react';
+import { ResizableModal } from '../ui/ResizableModal';
 
 interface AddPassageModalProps {
   isOpen: boolean;
@@ -99,8 +100,8 @@ export const AddPassageModal: React.FC<AddPassageModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="w-full max-w-xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 space-y-5 max-h-[90vh] overflow-y-auto">
+    <ResizableModal defaultWidth={580} onBackdropClick={onClose}>
+      <div className="w-full h-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-slate-100 flex flex-col gap-5 overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -243,11 +244,11 @@ export const AddPassageModal: React.FC<AddPassageModalProps> = ({
 
         {/* Canon Browser View */}
         {activeTab === 'browse' && (
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 flex flex-col min-h-0">
             <p className="text-xs text-slate-400">
               Select any biblical book to start studying. You can refine chapter and verse numbers directly on the canvas!
             </p>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            <div className="space-y-3 flex-1 min-h-[260px] overflow-y-auto pr-1">
               {CANON_BOOKS.map((section) => (
                 <div key={section.category} className="space-y-1.5">
                   <div className="text-[11px] font-bold text-sky-400 tracking-wider uppercase">
@@ -271,6 +272,6 @@ export const AddPassageModal: React.FC<AddPassageModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </ResizableModal>
   );
 };
