@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Connection, CanvasNode } from '../../types';
 
 interface ConnectionLineProps {
@@ -7,7 +7,25 @@ interface ConnectionLineProps {
   isSelected?: boolean;
   onSelect?: () => void;
   onDelete?: () => void;
+  onUpdate?: (updates: Partial<Connection>) => void;
 }
+
+const LINK_COLORS = [
+  { hex: '#38bdf8', name: 'Sky' },
+  { hex: '#f59e0b', name: 'Amber' },
+  { hex: '#10b981', name: 'Emerald' },
+  { hex: '#ec4899', name: 'Rose' },
+  { hex: '#a855f7', name: 'Purple' },
+  { hex: '#f97316', name: 'Orange' },
+];
+
+const LINK_PRESETS = [
+  { label: 'Cross-Ref / Quote', type: 'direct_quote' as const, color: '#38bdf8' },
+  { label: 'Fulfilled In', type: 'prophecy_fulfillment' as const, color: '#f59e0b' },
+  { label: 'Parallel', type: 'parallel_passage' as const, color: '#10b981' },
+  { label: 'Theme / Motif', type: 'thematic_motif' as const, color: '#a855f7' },
+  { label: 'Contrast', type: 'inductive_link' as const, color: '#ec4899' },
+];
 
 type Direction = 'left' | 'right' | 'top' | 'bottom';
 
@@ -161,7 +179,11 @@ export const ConnectionLine: React.FC<ConnectionLineProps> = ({
   isSelected,
   onSelect,
   onDelete,
+  onUpdate,
 }) => {
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [draftLabel, setDraftLabel] = useState(connection.label || '');
+
   const sourceNode = nodes[connection.sourceNodeId];
   const targetNode = nodes[connection.targetNodeId];
 
@@ -200,6 +222,13 @@ export const ConnectionLine: React.FC<ConnectionLineProps> = ({
   const midY = (start.y + end.y) / 2;
 
   const strokeColor = connection.color || '#38bdf8';
+
+  const handleSaveLabel = () => {
+    setIsEditingLabel(false);
+    if (draftLabel.trim() !== (connection.label || '')) {
+      onUpdate?.({ label: draftLabel.trim() || 'Scripture Link' });
+    }
+  };
 
   return (
     <g className="cursor-pointer group" onClick={onSelect}>
@@ -265,38 +294,126 @@ export const ConnectionLine: React.FC<ConnectionLineProps> = ({
         </marker>
       </defs>
 
-      {/* Midpoint Label Pill */}
-      {connection.label && (
+      {/* Midpoint Label Pill & Interactive Editor */}
+      {(connection.label || isSelected) && (
         <foreignObject
-          x={midX - 90}
+          x={midX - 130}
           y={midY - 16}
-          width={180}
-          height={34}
+          width={260}
+          height={isSelected ? 110 : 36}
           className="overflow-visible pointer-events-auto"
         >
-          <div className="flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {/* Primary Pill */}
             <div
-              className={`px-2.5 py-1 rounded-full text-xs font-medium border shadow-lg backdrop-blur-md flex items-center gap-1.5 ${
+              onClick={() => {
+                onSelect?.();
+                if (isSelected && !isEditingLabel) {
+                  setDraftLabel(connection.label || '');
+                  setIsEditingLabel(true);
+                }
+              }}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border shadow-lg backdrop-blur-md flex items-center gap-1.5 transition-all ${
                 isSelected
                   ? 'bg-slate-900 border-sky-400 text-sky-200 ring-2 ring-sky-500/30'
                   : 'bg-slate-900/90 border-slate-700/80 text-slate-300 hover:border-slate-500'
               }`}
+              title={isSelected ? 'Click label to rename connection' : 'Click to select or edit link'}
             >
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: strokeColor }} />
-              <span className="truncate max-w-[130px]">{connection.label}</span>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: strokeColor }} />
+              {isSelected && isEditingLabel ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={draftLabel}
+                  onChange={(e) => setDraftLabel(e.target.value)}
+                  onBlur={handleSaveLabel}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveLabel();
+                    if (e.key === 'Escape') setIsEditingLabel(false);
+                  }}
+                  placeholder="Link label..."
+                  className="bg-slate-950 border border-sky-500/60 rounded px-1.5 py-0.5 text-[11px] text-white w-28 focus:outline-none"
+                />
+              ) : (
+                <span className="truncate max-w-[140px]">
+                  {connection.label || 'Scripture Link'}
+                </span>
+              )}
+              {isSelected && !isEditingLabel && (
+                <span className="text-[10px] text-slate-400 hover:text-sky-300 ml-0.5" title="Edit label">
+                  ✎
+                </span>
+              )}
               {isSelected && onDelete && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="ml-1 text-slate-400 hover:text-rose-400"
-                  title="Remove link"
+                  className="ml-1 text-slate-400 hover:text-rose-400 p-0.5 rounded hover:bg-slate-800 transition-colors"
+                  title="Remove link (Delete/Backspace)"
                 >
                   ✕
                 </button>
               )}
             </div>
+
+            {/* Selected Link Quick Style & Preset Bar */}
+            {isSelected && onUpdate && (
+              <div className="px-2.5 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700/90 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+                {/* Preset Type Pills */}
+                <div className="flex items-center gap-1 flex-wrap justify-center">
+                  {LINK_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      onClick={() =>
+                        onUpdate({
+                          label: preset.label,
+                          type: preset.type,
+                          color: preset.color,
+                        })
+                      }
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-semibold transition-colors ${
+                        connection.label === preset.label
+                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                          : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Colors & Line Style Toggle */}
+                <div className="flex items-center gap-2 pt-0.5 border-t border-slate-800/80 w-full justify-between px-1">
+                  <div className="flex items-center gap-1">
+                    {LINK_COLORS.map((c) => (
+                      <button
+                        key={c.hex}
+                        onClick={() => onUpdate({ color: c.hex })}
+                        className={`w-3 h-3 rounded-full transition-transform hover:scale-125 ${
+                          strokeColor === c.hex ? 'ring-1 ring-white scale-110' : 'opacity-75 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={() =>
+                      onUpdate({
+                        type: connection.type === 'thematic_motif' ? 'direct_quote' : 'thematic_motif',
+                      })
+                    }
+                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[9px] font-mono text-slate-300"
+                    title="Toggle Solid vs Dashed Line"
+                  >
+                    {connection.type === 'thematic_motif' ? '--- Dashed' : '─── Solid'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </foreignObject>
       )}

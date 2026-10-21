@@ -204,6 +204,7 @@ export class PeerSyncChannel {
   private localUser: UserProfile;
   private onMessageCallback: (msg: PeerMessage) => void;
   private heartbeatTimer: number | null = null;
+  private peerIdToUserId: Map<string, string> = new Map();
 
   constructor(
     roomCode: string,
@@ -245,8 +246,13 @@ export class PeerSyncChannel {
         const action = this.trysteroRoom.makeAction('peerMessage');
         this.sendTrysteroAction = (msg: PeerMessage) => action.send(msg);
 
-        action.onMessage = (data: any) => {
+        action.onMessage = (data: any, meta: any) => {
           if (data && typeof data === 'object') {
+            const rawPeerId = typeof meta === 'string' ? meta : meta?.peerId;
+            const remoteUserId = data.user?.id || data.senderId || data.userId;
+            if (rawPeerId && remoteUserId) {
+              this.peerIdToUserId.set(rawPeerId, remoteUserId);
+            }
             this.onMessageCallback(data as PeerMessage);
           }
         };
@@ -261,9 +267,11 @@ export class PeerSyncChannel {
 
         this.trysteroRoom.onPeerLeave = (peerId: string) => {
           console.log(`[ScriptureCanvas P2P] Remote peer disconnected: ${peerId}`);
+          const resolvedUserId = this.peerIdToUserId.get(peerId) || peerId;
+          this.peerIdToUserId.delete(peerId);
           this.onMessageCallback({
             type: 'PEER_LEAVE',
-            userId: peerId,
+            userId: resolvedUserId,
           });
         };
       } catch (err) {
@@ -285,8 +293,9 @@ export class PeerSyncChannel {
       });
     }, 3000);
 
-    // Broadcast leave on beforeunload
+    // Broadcast leave on beforeunload & pagehide for reliable tab closing
     window.addEventListener('beforeunload', this.handleUnload);
+    window.addEventListener('pagehide', this.handleUnload);
   }
 
   private handleUnload = () => {
@@ -332,6 +341,13 @@ export class PeerSyncChannel {
     });
   }
 
+  public sendCursorLeave(): void {
+    this.broadcast({
+      type: 'CURSOR_LEAVE',
+      userId: this.localUser.id,
+    });
+  }
+
   public sendNodeMove(nodeId: string, x: number, y: number): void {
     this.broadcast({
       type: 'NODE_MOVE',
@@ -366,11 +382,30 @@ export class PeerSyncChannel {
     });
   }
 
+  public sendConnectionUpdate(connection: Connection): void {
+    this.broadcast({
+      type: 'CONNECTION_UPDATE',
+      connection,
+      senderId: this.localUser.id,
+    });
+  }
+
   public sendConnectionDelete(connectionId: string): void {
     this.broadcast({
       type: 'CONNECTION_DELETE',
       connectionId,
       senderId: this.localUser.id,
+    });
+  }
+
+  public sendSpotlightSummon(worldCenter: { x: number; y: number }, zoom: number): void {
+    this.broadcast({
+      type: 'SPOTLIGHT_SUMMON',
+      senderId: this.localUser.id,
+      senderName: this.localUser.name,
+      senderColor: this.localUser.color,
+      worldCenter,
+      zoom,
     });
   }
 
@@ -386,12 +421,13 @@ export class PeerSyncChannel {
     });
   }
 
-  public sendStickyUpdate(nodeId: string, content?: string, category?: any): void {
+  public sendStickyUpdate(nodeId: string, content?: string, category?: any, color?: any): void {
     this.broadcast({
       type: 'STICKY_UPDATE',
       nodeId,
       content,
       category,
+      color,
       senderId: this.localUser.id,
     });
   }
@@ -488,6 +524,7 @@ export class PeerSyncChannel {
     }
     this.handleUnload();
     window.removeEventListener('beforeunload', this.handleUnload);
+    window.removeEventListener('pagehide', this.handleUnload);
     if (this.channel) {
       this.channel.close();
       this.channel = null;

@@ -39,6 +39,7 @@ import { TemplatePickerModal } from './components/modals/TemplatePickerModal';
 import { ShareModal } from './components/modals/ShareModal';
 import { ExportStudyModal } from './components/modals/ExportStudyModal';
 import { CommandPaletteModal } from './components/modals/CommandPaletteModal';
+import { ShortcutsHelpModal } from './components/modals/ShortcutsHelpModal';
 import { RoomConnectingScreen } from './components/ui/RoomConnectingScreen';
 import { RoomLockScreen } from './components/ui/RoomLockScreen';
 
@@ -165,6 +166,7 @@ export const App: React.FC = () => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [activeCrossRef, setActiveCrossRef] = useState<{
     verseRef: string;
     verseNum: number;
@@ -176,6 +178,23 @@ export const App: React.FC = () => {
     chapter: number;
     verse: number;
     verseText?: string;
+  } | null>(null);
+
+  // Undo / Redo History Stack
+  const [historyPast, setHistoryPast] = useState<
+    Array<{ nodes: Record<string, CanvasNode>; connections: Connection[] }>
+  >([]);
+  const [historyFuture, setHistoryFuture] = useState<
+    Array<{ nodes: Record<string, CanvasNode>; connections: Connection[] }>
+  >([]);
+
+  // Small Group Follow & Spotlight State
+  const [followingPeerId, setFollowingPeerId] = useState<string | null>(null);
+  const [spotlightBanner, setSpotlightBanner] = useState<{
+    senderName: string;
+    senderColor: string;
+    worldCenter: { x: number; y: number };
+    zoom: number;
   } | null>(null);
 
   // Command palette focus node handler
@@ -273,6 +292,33 @@ export const App: React.FC = () => {
   const [isSimulatingCollab, setIsSimulatingCollab] = useState(false);
   const [simulatedPeers, setSimulatedPeers] = useState<Collaborator[]>([]);
 
+  // Toast notifications for collaboration & undo events
+  const [toast, setToast] = useState<{
+    message: string;
+    type?: 'info' | 'success';
+    id: number;
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null);
+
+  const showToast = useCallback(
+    (
+      message: string,
+      type: 'info' | 'success' = 'info',
+      actionLabel?: string,
+      onAction?: () => void
+    ) => {
+      setToast({ message, type, id: Date.now(), actionLabel, onAction });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), toast.actionLabel ? 5000 : 3200);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   // Cryptographic Authentication & Gatekeeping Refs
   const authorizedPeersRef = useRef<Set<string>>(new Set());
   const pendingChallengeRef = useRef<{ challenge: string; senderId: string } | null>(null);
@@ -288,6 +334,64 @@ export const App: React.FC = () => {
   useEffect(() => {
     stateRef.current = { nodes, connections, roomTitle, currentUser };
   }, [nodes, connections, roomTitle, currentUser]);
+
+  // Record a canvas snapshot before structural mutations for Undo/Redo
+  const recordSnapshot = useCallback(() => {
+    setHistoryPast((prev) => [
+      ...prev.slice(-34),
+      {
+        nodes: stateRef.current.nodes,
+        connections: stateRef.current.connections,
+      },
+    ]);
+    setHistoryFuture([]);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    setHistoryPast((prev) => {
+      if (prev.length === 0) return prev;
+      const previous = prev[prev.length - 1];
+      setHistoryFuture((f) => [
+        {
+          nodes: stateRef.current.nodes,
+          connections: stateRef.current.connections,
+        },
+        ...f.slice(0, 34),
+      ]);
+      setNodes(previous.nodes);
+      setConnections(previous.connections);
+      peerSyncRef.current?.sendSyncResponse(
+        '*',
+        previous.nodes,
+        previous.connections,
+        stateRef.current.roomTitle
+      );
+      return prev.slice(0, -1);
+    });
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    setHistoryFuture((prev) => {
+      if (prev.length === 0) return prev;
+      const nextState = prev[0];
+      setHistoryPast((p) => [
+        ...p.slice(-34),
+        {
+          nodes: stateRef.current.nodes,
+          connections: stateRef.current.connections,
+        },
+      ]);
+      setNodes(nextState.nodes);
+      setConnections(nextState.connections);
+      peerSyncRef.current?.sendSyncResponse(
+        '*',
+        nextState.nodes,
+        nextState.connections,
+        stateRef.current.roomTitle
+      );
+      return prev.slice(1);
+    });
+  }, []);
 
   // Deduplication cache for cross-channel messages (BroadcastChannel + WebRTC)
   const seenMessagesRef = useRef<Set<string>>(new Set());
@@ -322,10 +426,13 @@ export const App: React.FC = () => {
             name: msg.user.name,
             avatar: msg.user.avatar,
             color: msg.user.color,
-            cursor: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+            cursor: { x: 500, y: 300 },
             isOnline: true,
+            lastSeen: Date.now(),
+            hidden: false,
           },
         }));
+        showToast(`${msg.user.name} joined the room`);
         peerSyncRef.current?.sendSyncResponse(
           msg.user.id,
           stateRef.current.nodes,
@@ -367,10 +474,13 @@ export const App: React.FC = () => {
                 name: msg.user!.name,
                 avatar: msg.user!.avatar,
                 color: msg.user!.color,
-                cursor: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+                cursor: { x: 500, y: 300 },
                 isOnline: true,
+                lastSeen: Date.now(),
+                hidden: false,
               },
             }));
+            showToast(`${msg.user.name} joined the room`);
           }
           peerSyncRef.current?.sendSyncResponse(
             msg.senderId,
@@ -393,10 +503,13 @@ export const App: React.FC = () => {
                 name: msg.user!.name,
                 avatar: msg.user!.avatar,
                 color: msg.user!.color,
-                cursor: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+                cursor: { x: 500, y: 300 },
                 isOnline: true,
+                lastSeen: Date.now(),
+                hidden: false,
               },
             }));
+            showToast(`${msg.user.name} joined the room`);
           }
           // Now safely transmit board state
           peerSyncRef.current?.sendSyncResponse(
@@ -452,7 +565,16 @@ export const App: React.FC = () => {
       case 'PEER_LEAVE': {
         setRealPeers((prev) => {
           const next = { ...prev };
+          const peerName = next[msg.userId]?.name;
           delete next[msg.userId];
+          for (const key of Object.keys(next)) {
+            if (next[key].id === msg.userId) {
+              delete next[key];
+            }
+          }
+          if (peerName) {
+            showToast(`${peerName} left the room`);
+          }
           return next;
         });
         break;
@@ -470,8 +592,10 @@ export const App: React.FC = () => {
             name: msg.user.name,
             avatar: msg.user.avatar,
             color: msg.user.color,
-            cursor: msg.cursor || prev[msg.user.id]?.cursor || { x: 300, y: 300 },
+            cursor: msg.cursor || prev[msg.user.id]?.cursor || { x: 500, y: 300 },
             isOnline: true,
+            lastSeen: Date.now(),
+            hidden: prev[msg.user.id]?.hidden ?? false,
           },
         }));
         break;
@@ -487,6 +611,24 @@ export const App: React.FC = () => {
             [msg.userId]: {
               ...peer,
               cursor: msg.cursor,
+              hidden: false,
+              lastSeen: Date.now(),
+            },
+          };
+        });
+        break;
+      }
+
+      case 'CURSOR_LEAVE': {
+        if (msg.userId === stateRef.current.currentUser.id) return;
+        setRealPeers((prev) => {
+          const peer = prev[msg.userId];
+          if (!peer) return prev;
+          return {
+            ...prev,
+            [msg.userId]: {
+              ...peer,
+              hidden: true,
             },
           };
         });
@@ -546,12 +688,37 @@ export const App: React.FC = () => {
         break;
       }
 
+      case 'CONNECTION_UPDATE': {
+        if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
+        setConnections((prev) =>
+          prev.map((c) => (c.id === msg.connection.id ? msg.connection : c))
+        );
+        break;
+      }
+
       case 'CONNECTION_DELETE': {
         if (msg.senderId === stateRef.current.currentUser.id) return;
         const localPwd = getRoomPassword(roomCode);
         if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
 
         setConnections((prev) => prev.filter((c) => c.id !== msg.connectionId));
+        break;
+      }
+
+      case 'SPOTLIGHT_SUMMON': {
+        if (msg.senderId === stateRef.current.currentUser.id) return;
+        const localPwd = getRoomPassword(roomCode);
+        if (localPwd && !authorizedPeersRef.current.has(msg.senderId)) return;
+
+        setSpotlightBanner({
+          senderName: msg.senderName,
+          senderColor: msg.senderColor,
+          worldCenter: msg.worldCenter,
+          zoom: msg.zoom,
+        });
         break;
       }
 
@@ -601,6 +768,7 @@ export const App: React.FC = () => {
               ...node,
               ...(msg.content !== undefined ? { content: msg.content } : {}),
               ...(msg.category !== undefined ? { category: msg.category } : {}),
+              ...(msg.color !== undefined ? { color: msg.color } : {}),
             },
           };
         });
@@ -654,7 +822,10 @@ export const App: React.FC = () => {
       }
 
       case 'SYNC_RESPONSE': {
-        if (msg.targetId === stateRef.current.currentUser.id) {
+        if (
+          msg.targetId === stateRef.current.currentUser.id ||
+          (msg.targetId === '*' && msg.senderId !== stateRef.current.currentUser.id)
+        ) {
           setNodes(msg.nodes);
           setConnections(msg.connections);
           setRoomTitle(msg.title);
@@ -663,7 +834,7 @@ export const App: React.FC = () => {
         break;
       }
     }
-  }, [roomCode]);
+  }, [roomCode, showToast]);
 
   // Initialize Real-time PeerSyncChannel
   useEffect(() => {
@@ -732,6 +903,39 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleCursorLeave = useCallback(() => {
+    peerSyncRef.current?.sendCursorLeave();
+  }, []);
+
+  // Broadcast cursor hide when switching away or window loses focus
+  useEffect(() => {
+    const handleBlur = () => {
+      peerSyncRef.current?.sendCursorLeave();
+    };
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, []);
+
+  // Periodically sweep and prune stale peers that missed heartbeats (> 8s)
+  useEffect(() => {
+    const sweepInterval = setInterval(() => {
+      const now = Date.now();
+      setRealPeers((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [id, peer] of Object.entries(next)) {
+          if (peer.lastSeen && now - peer.lastSeen > 8000) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 2500);
+
+    return () => clearInterval(sweepInterval);
+  }, []);
+
   // Bot Small Group Simulation (Solo mode demonstration)
   const handleToggleCollabSimulation = () => {
     if (!isSimulatingCollab) {
@@ -780,8 +984,8 @@ export const App: React.FC = () => {
           return {
             ...c,
             cursor: {
-              x: Math.max(120, Math.min(window.innerWidth - 120, c.cursor.x + deltaX)),
-              y: Math.max(100, Math.min(window.innerHeight - 100, c.cursor.y + deltaY)),
+              x: Math.max(120, Math.min(1400, c.cursor.x + deltaX)),
+              y: Math.max(100, Math.min(900, c.cursor.y + deltaY)),
             },
           };
         })
@@ -797,10 +1001,244 @@ export const App: React.FC = () => {
     ...simulatedPeers,
   ];
 
-  const handleCenterCanvas = () => {
-    setPan({ x: 120, y: 60 });
-    setZoom(0.85);
-  };
+  // Follow Peer Mode: Automatically track followed collaborator's cursor
+  useEffect(() => {
+    if (!followingPeerId) return;
+    const targetPeer =
+      realPeers[followingPeerId] || simulatedPeers.find((p) => p.id === followingPeerId);
+    if (!targetPeer) {
+      setFollowingPeerId(null);
+      return;
+    }
+    const targetPanX = window.innerWidth / 2 - targetPeer.cursor.x * zoom;
+    const targetPanY = window.innerHeight / 2 - targetPeer.cursor.y * zoom;
+    setPan({ x: Math.round(targetPanX), y: Math.round(targetPanY) });
+  }, [followingPeerId, realPeers, simulatedPeers, zoom]);
+
+  // Jump to Peer & Toggle Follow Mode
+  const handleJumpToPeer = useCallback(
+    (peer: Collaborator) => {
+      if (followingPeerId === peer.id) {
+        setFollowingPeerId(null);
+        showToast(`Stopped following ${peer.name}`);
+        return;
+      }
+      const targetPanX = window.innerWidth / 2 - peer.cursor.x * zoom;
+      const targetPanY = window.innerHeight / 2 - peer.cursor.y * zoom;
+      setPan({ x: Math.round(targetPanX), y: Math.round(targetPanY) });
+      setFollowingPeerId(peer.id);
+      showToast(`Following ${peer.name} — click their avatar again to stop`);
+    },
+    [followingPeerId, zoom, showToast]
+  );
+
+  // Broadcast Spotlight Summon ("Gather Group Here")
+  const handleGatherGroup = useCallback(() => {
+    const worldCenterX = Math.round((window.innerWidth / 2 - pan.x) / zoom);
+    const worldCenterY = Math.round((window.innerHeight / 2 - pan.y) / zoom);
+    peerSyncRef.current?.sendSpotlightSummon({ x: worldCenterX, y: worldCenterY }, zoom);
+    showToast('Spotlight sent — invited group to your current view!', 'success');
+  }, [pan, zoom, showToast]);
+
+  // Dynamic Fit / Auto-Center: Frames all canvas nodes comfortably
+  const handleCenterCanvas = useCallback(() => {
+    const nodeList = Object.values(nodes);
+    if (nodeList.length === 0) {
+      setPan({ x: 120, y: 60 });
+      setZoom(0.85);
+      return;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const n of nodeList) {
+      const w = n.type === 'scripture' ? 500 : n.type === 'prompt' ? 400 : 260;
+      const h = n.type === 'scripture' ? 450 : n.type === 'prompt' ? 300 : 200;
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + w);
+      maxY = Math.max(maxY, n.y + h);
+    }
+
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const padding = 80;
+    const viewW = window.innerWidth - padding * 2;
+    const viewH = window.innerHeight - 70 - padding * 2;
+
+    const fitZoom = Math.min(
+      Math.max(Math.min(viewW / (contentW || 1), viewH / (contentH || 1)), 0.4),
+      1.1
+    );
+
+    const targetPanX = window.innerWidth / 2 - (minX + contentW / 2) * fitZoom;
+    const targetPanY = (window.innerHeight + 56) / 2 - (minY + contentH / 2) * fitZoom;
+
+    setZoom(Number(fitZoom.toFixed(2)));
+    setPan({ x: Math.round(targetPanX), y: Math.round(targetPanY) });
+  }, [nodes]);
+
+  // 1-Click Tidy & Auto-Arrange Smart Canvas Layout
+  const handleTidyCanvas = useCallback(() => {
+    const nodeList = Object.values(nodes);
+    if (nodeList.length === 0) return;
+
+    recordSnapshot();
+
+    const scriptures = nodeList.filter((n) => n.type === 'scripture');
+    const lexicons = nodeList.filter((n) => n.type === 'lexicon');
+    const stickies = nodeList.filter((n) => n.type === 'sticky');
+    const prompts = nodeList.filter((n) => n.type === 'prompt');
+    const others = nodeList.filter(
+      (n) => !['scripture', 'lexicon', 'sticky', 'prompt'].includes(n.type)
+    );
+
+    const nextNodes: Record<string, CanvasNode> = { ...nodes };
+
+    // 1. Place Lexicon cards in the left column (x = 20)
+    let lexY = 120;
+    for (const lex of lexicons) {
+      nextNodes[lex.id] = { ...lex, x: 20, y: lexY };
+      lexY += 290;
+    }
+
+    // 2. Place Scripture cards in the central column (x = 380)
+    const scriptureX = lexicons.length > 0 ? 380 : 180;
+    let scripY = 120;
+    for (const scrip of scriptures) {
+      nextNodes[scrip.id] = { ...scrip, x: scriptureX, y: scripY };
+      const verseCount = (scrip as ScriptureNodeData).passage?.verses?.length || 4;
+      const cardH = Math.min(Math.max(180 + verseCount * 45, 280), 540);
+      scripY += cardH + 60;
+    }
+
+    // 3. Place Sticky Notes to the right of Scripture cards
+    const notesStartX = scriptureX + 560;
+    let stickyY = 120;
+    stickies.forEach((st, idx) => {
+      const col = idx % 2;
+      const xPos = notesStartX + col * 285;
+      const yPos = col === 0 ? stickyY : stickyY;
+      nextNodes[st.id] = { ...st, x: xPos, y: yPos };
+      if (col === 1 || idx === stickies.length - 1) {
+        stickyY += 230;
+      }
+    });
+
+    // 4. Place Discussion Prompts below or beside Sticky Notes
+    let promptY = stickies.length > 0 ? stickyY + 20 : 120;
+    for (const pr of prompts) {
+      nextNodes[pr.id] = { ...pr, x: notesStartX, y: promptY };
+      promptY += 310;
+    }
+
+    // 5. Any remaining nodes
+    let otherY = promptY;
+    for (const ot of others) {
+      nextNodes[ot.id] = { ...ot, x: notesStartX, y: otherY };
+      otherY += 260;
+    }
+
+    setNodes(nextNodes);
+    peerSyncRef.current?.sendSyncResponse('*', nextNodes, connections, roomTitle);
+    showToast('Canvas tidied into columns', 'success', 'Undo', handleUndo);
+
+    // Frame the newly organized layout
+    setTimeout(() => {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const n of Object.values(nextNodes)) {
+        const w = n.type === 'scripture' ? 500 : n.type === 'prompt' ? 400 : 260;
+        const h = n.type === 'scripture' ? 450 : n.type === 'prompt' ? 300 : 200;
+        minX = Math.min(minX, n.x);
+        minY = Math.min(minY, n.y);
+        maxX = Math.max(maxX, n.x + w);
+        maxY = Math.max(maxY, n.y + h);
+      }
+      const contentW = maxX - minX;
+      const contentH = maxY - minY;
+      const padding = 80;
+      const viewW = window.innerWidth - padding * 2;
+      const viewH = window.innerHeight - 70 - padding * 2;
+      const fitZoom = Math.min(
+        Math.max(Math.min(viewW / (contentW || 1), viewH / (contentH || 1)), 0.45),
+        1.0
+      );
+      const targetPanX = window.innerWidth / 2 - (minX + contentW / 2) * fitZoom;
+      const targetPanY = (window.innerHeight + 56) / 2 - (minY + contentH / 2) * fitZoom;
+      setZoom(Number(fitZoom.toFixed(2)));
+      setPan({ x: Math.round(targetPanX), y: Math.round(targetPanY) });
+    }, 30);
+  }, [nodes, connections, roomTitle, recordSnapshot, showToast, handleUndo]);
+
+  // Global Tool, History & View Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        (activeEl as HTMLElement).isContentEditable
+      );
+      if (isInput) return;
+
+      // Undo / Redo shortcuts (Ctrl+Z, Cmd+Z, Ctrl+Y, Cmd+Shift+Z)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Shift+A: Tidy & Auto-Arrange Canvas
+      if (e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        handleTidyCanvas();
+        return;
+      }
+
+      // ?: Toggle Shortcuts Cheat-Sheet Modal
+      if (e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsModalOpen((prev) => !prev);
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'v') {
+        setActiveTool('select');
+      } else if (key === 'h') {
+        setActiveTool('pan');
+      } else if (key === 'c') {
+        setActiveTool('connect');
+      } else if (key === 'f') {
+        e.preventDefault();
+        handleCenterCanvas();
+      } else if (key === '+' || key === '=') {
+        e.preventDefault();
+        setZoom((z: number) => Math.min(Number((z * 1.15).toFixed(2)), 2.2));
+      } else if (key === '-' || key === '_') {
+        e.preventDefault();
+        setZoom((z: number) => Math.max(Number((z / 1.15).toFixed(2)), 0.35));
+      } else if (key === '0' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setZoom(1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCenterCanvas, handleUndo, handleRedo, handleTidyCanvas]);
 
   // Node Position Updater
   const handleUpdateNodePosition = (nodeId: string, x: number, y: number) => {
@@ -819,8 +1257,9 @@ export const App: React.FC = () => {
     peerSyncRef.current?.sendNodeMove(nodeId, x, y);
   };
 
-  // Node Deletion
+  // Node Deletion (with Undo Snapshot & Toast)
   const handleDeleteNode = (nodeId: string) => {
+    recordSnapshot();
     setNodes((prev) => {
       const next = { ...prev };
       delete next[nodeId];
@@ -831,15 +1270,31 @@ export const App: React.FC = () => {
     );
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
     peerSyncRef.current?.sendNodeDelete(nodeId);
+    showToast('Card removed from canvas', 'info', 'Undo', handleUndo);
   };
 
-  // Connection Deletion
+  // Connection Deletion (with Undo Snapshot & Toast)
   const handleDeleteConnection = (connectionId: string) => {
+    recordSnapshot();
     setConnections((prev) => prev.filter((c) => c.id !== connectionId));
     peerSyncRef.current?.sendConnectionDelete(connectionId);
+    showToast('Connection link removed', 'info', 'Undo', handleUndo);
   };
 
-  // Highlights Updater
+  // Connection Update (Editable Labels, Colors & Types)
+  const handleUpdateConnection = (connectionId: string, updates: Partial<Connection>) => {
+    recordSnapshot();
+    setConnections((prev) =>
+      prev.map((c) => {
+        if (c.id !== connectionId) return c;
+        const updated = { ...c, ...updates };
+        peerSyncRef.current?.sendConnectionUpdate(updated);
+        return updated;
+      })
+    );
+  };
+
+  // Highlights Updater (supports clean toggling on re-click)
   const handleUpdateHighlights = (
     nodeId: string,
     verseNum: number,
@@ -851,25 +1306,37 @@ export const App: React.FC = () => {
       if (!node || node.type !== 'scripture') return prev;
 
       const currentHighlights = node.highlights[verseNum] || [];
-      const updatedHighlights = [
-        ...currentHighlights,
-        {
-          verseNum,
-          text: '',
-          color,
-          tag: tag as any,
-          author: currentUser.name,
-        },
-      ];
+      const hasExactColor = currentHighlights.some((h) => h.color === color);
+
+      let updatedHighlights: any[];
+      if (hasExactColor) {
+        // Toggle off if clicking the same color
+        updatedHighlights = currentHighlights.filter((h) => h.color !== color);
+      } else {
+        // Replace with new color
+        updatedHighlights = [
+          {
+            verseNum,
+            text: '',
+            color,
+            tag: tag as any,
+            author: currentUser.name,
+          },
+        ];
+      }
+
+      const nextHighlightsMap = { ...node.highlights };
+      if (updatedHighlights.length === 0) {
+        delete nextHighlightsMap[verseNum];
+      } else {
+        nextHighlightsMap[verseNum] = updatedHighlights;
+      }
 
       return {
         ...prev,
         [nodeId]: {
           ...node,
-          highlights: {
-            ...node.highlights,
-            [verseNum]: updatedHighlights,
-          },
+          highlights: nextHighlightsMap,
         },
       };
     });
@@ -894,6 +1361,15 @@ export const App: React.FC = () => {
       return { ...prev, [nodeId]: { ...node, category } };
     });
     peerSyncRef.current?.sendStickyUpdate(nodeId, undefined, category);
+  };
+
+  const handleUpdateStickyColor = (nodeId: string, color: StickyNoteData['color']) => {
+    setNodes((prev) => {
+      const node = prev[nodeId];
+      if (!node || node.type !== 'sticky') return prev;
+      return { ...prev, [nodeId]: { ...node, color } };
+    });
+    peerSyncRef.current?.sendStickyUpdate(nodeId, undefined, undefined, color);
   };
 
   // Prompt Question Answer
@@ -922,6 +1398,7 @@ export const App: React.FC = () => {
 
   // Connect Two Nodes Manually
   const handleConnectNodes = (sourceId: string, targetId: string) => {
+    recordSnapshot();
     const newConn: Connection = {
       id: `conn-${Date.now()}`,
       sourceNodeId: sourceId,
@@ -937,6 +1414,7 @@ export const App: React.FC = () => {
   // Add Scripture Passage to Canvas
   const handleAddPassage = async (reference: string, translation: Translation) => {
     const passage = await fetchPassage(reference, translation);
+    recordSnapshot();
     const id = `scripture-${Date.now()}`;
     const newNode: CanvasNode = {
       id,
@@ -955,6 +1433,7 @@ export const App: React.FC = () => {
 
   // Add Sticky Note
   const handleAddSticky = (color: 'amber' | 'blue' | 'emerald' | 'rose' | 'purple') => {
+    recordSnapshot();
     const id = `sticky-${Date.now()}`;
     const newNode: CanvasNode = {
       id,
@@ -979,6 +1458,7 @@ export const App: React.FC = () => {
     const entry = LEXICON_DATABASE[strongs];
     if (!entry) return;
 
+    recordSnapshot();
     const id = `lexicon-${Date.now()}`;
     const newNode: CanvasNode = {
       id,
@@ -996,6 +1476,7 @@ export const App: React.FC = () => {
 
   // Add Socratic Prompt
   const handleAddPrompt = (category: 'Observation' | 'Interpretation' | 'Application') => {
+    recordSnapshot();
     const id = `prompt-${Date.now()}`;
     const questions = {
       Observation: 'What repeated phrases, contrasting words, or logical connectives stand out in this text?',
@@ -1023,6 +1504,7 @@ export const App: React.FC = () => {
   const handleSpawnAndConnect = async (relation: CrossReferenceRelation) => {
     if (!activeCrossRef) return;
 
+    recordSnapshot();
     const sourceNodeId = activeCrossRef.nodeId;
     const sourceNode = nodes[sourceNodeId];
     const sourceVerse = activeCrossRef.verseNum;
@@ -1213,6 +1695,9 @@ export const App: React.FC = () => {
         onOpenShare={() => setIsShareModalOpen(true)}
         onOpenExport={() => setIsExportModalOpen(true)}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        followingPeerId={followingPeerId}
+        onJumpToPeer={handleJumpToPeer}
+        onGatherGroup={handleGatherGroup}
       />
 
       {/* Main Infinite Canvas */}
@@ -1224,15 +1709,21 @@ export const App: React.FC = () => {
         activeTool={activeTool}
         activeColor={activeColor}
         selectedNodeId={selectedNodeId}
-        onPanChange={setPan}
+        onPanChange={(nextPan) => {
+          if (followingPeerId) setFollowingPeerId(null);
+          setPan(nextPan);
+        }}
         onZoomChange={setZoom}
         onSelectNode={setSelectedNodeId}
+        onDragStartNode={() => recordSnapshot()}
         onUpdateNodePosition={handleUpdateNodePosition}
         onDeleteNode={handleDeleteNode}
         onDeleteConnection={handleDeleteConnection}
+        onUpdateConnection={handleUpdateConnection}
         onUpdateHighlights={handleUpdateHighlights}
         onUpdateStickyContent={handleUpdateStickyContent}
         onUpdateStickyCategory={handleUpdateStickyCategory}
+        onUpdateStickyColor={handleUpdateStickyColor}
         onAddPromptAnswer={handleAddPromptAnswer}
         onOpenCrossRefs={(ref, verseNum, nodeId) => {
           let resolvedNodeId = nodeId;
@@ -1249,6 +1740,7 @@ export const App: React.FC = () => {
         onOpenCommentary={handleOpenCommentary}
         onConnectNodes={handleConnectNodes}
         onCursorMove={handleCursorMove}
+        onCursorLeave={handleCursorLeave}
       />
 
       {/* Floating Toolbar */}
@@ -1263,6 +1755,12 @@ export const App: React.FC = () => {
         onOpenLexiconDrawer={() => setActiveStrongsWord('G26')}
         onOpenCommentaryDrawer={handleOpenCommentaryFromToolbar}
         onAddPrompt={handleAddPrompt}
+        canUndo={historyPast.length > 0}
+        canRedo={historyFuture.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onTidyCanvas={handleTidyCanvas}
+        onOpenShortcutsHelp={() => setIsShortcutsModalOpen(true)}
       />
 
       {/* MiniMap in Bottom-Left (hidden on mobile phones to free canvas space) */}
@@ -1271,12 +1769,92 @@ export const App: React.FC = () => {
           nodes={nodes}
           pan={pan}
           zoom={zoom}
-          onPanTo={(x, y) => setPan({ x, y })}
+          onPanTo={(x, y) => {
+            if (followingPeerId) setFollowingPeerId(null);
+            setPan({ x, y });
+          }}
         />
       </div>
 
       {/* Multiplayer Live Cursors (Rendered for real connected peers & simulation) */}
-      <PresenceCursors collaborators={activeCollaborators} />
+      <PresenceCursors collaborators={activeCollaborators} pan={pan} zoom={zoom} />
+
+      {/* Follow Mode Indicator Banner */}
+      {followingPeerId && (
+        <div className="fixed top-16 inset-x-0 flex justify-center z-40 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="pointer-events-auto px-4 py-1.5 rounded-full bg-sky-600/95 text-white text-xs font-semibold shadow-2xl border border-sky-400/50 flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+            <span>
+              Following{' '}
+              {(realPeers[followingPeerId] || simulatedPeers.find((p) => p.id === followingPeerId))
+                ?.name || 'Collaborator'}
+            </span>
+            <button
+              onClick={() => setFollowingPeerId(null)}
+              className="px-2 py-0.5 rounded-full bg-sky-900/80 hover:bg-sky-950 text-[11px] text-sky-100 transition-colors"
+            >
+              Stop
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Incoming Group Spotlight Summon Banner */}
+      {spotlightBanner && (
+        <div className="fixed top-16 inset-x-0 flex justify-center z-50 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="pointer-events-auto px-4 py-2 rounded-2xl bg-slate-900/95 border border-amber-500/50 text-slate-100 text-xs font-medium shadow-2xl backdrop-blur-xl flex items-center gap-3">
+            <span
+              className="w-2.5 h-2.5 rounded-full animate-pulse"
+              style={{ backgroundColor: spotlightBanner.senderColor }}
+            />
+            <span>
+              <strong className="text-amber-300">{spotlightBanner.senderName}</strong> invited the
+              group to view their current passage
+            </span>
+            <button
+              onClick={() => {
+                const targetZoom = spotlightBanner.zoom || 0.9;
+                const targetPanX = window.innerWidth / 2 - spotlightBanner.worldCenter.x * targetZoom;
+                const targetPanY = window.innerHeight / 2 - spotlightBanner.worldCenter.y * targetZoom;
+                setZoom(targetZoom);
+                setPan({ x: Math.round(targetPanX), y: Math.round(targetPanY) });
+                setSpotlightBanner(null);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors shadow-sm"
+            >
+              Jump Here
+            </button>
+            <button
+              onClick={() => setSpotlightBanner(null)}
+              className="text-slate-400 hover:text-slate-200 px-1"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Pill (with optional Undo action button) */}
+      {toast && (
+        <div className="fixed top-16 right-6 z-50 animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+          <div className="px-3.5 py-2 rounded-xl bg-slate-900/95 border border-slate-700/80 shadow-2xl text-xs font-medium text-slate-200 backdrop-blur-md flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+            <span>{toast.message}</span>
+            {toast.actionLabel && toast.onAction && (
+              <button
+                onClick={() => {
+                  toast.onAction?.();
+                  setToast(null);
+                }}
+                className="ml-1 px-2 py-0.5 rounded-md bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-semibold text-[11px] transition-colors cursor-pointer"
+              >
+                {toast.actionLabel}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modals & Drawers */}
       <AddPassageModal
@@ -1356,6 +1934,13 @@ export const App: React.FC = () => {
         onOpenCommentary={handleOpenCommentaryFromToolbar}
         onOpenExport={() => setIsExportModalOpen(true)}
         onCenterCanvas={handleCenterCanvas}
+        onTidyCanvas={handleTidyCanvas}
+        onOpenShortcutsHelp={() => setIsShortcutsModalOpen(true)}
+      />
+
+      <ShortcutsHelpModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
       />
     </div>
   );

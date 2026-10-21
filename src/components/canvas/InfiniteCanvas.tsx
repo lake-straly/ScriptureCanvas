@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import type { CanvasNode, Connection, HighlightColor } from '../../types';
 import { ConnectionLine } from './ConnectionLine';
 import { ScriptureNode } from '../nodes/ScriptureNode';
@@ -17,12 +17,15 @@ interface InfiniteCanvasProps {
   onPanChange: (pan: { x: number; y: number }) => void;
   onZoomChange: (zoom: number) => void;
   onSelectNode: (nodeId: string | null) => void;
+  onDragStartNode?: (nodeId: string) => void;
   onUpdateNodePosition: (nodeId: string, x: number, y: number) => void;
   onDeleteNode: (nodeId: string) => void;
   onDeleteConnection: (connectionId: string) => void;
+  onUpdateConnection?: (connectionId: string, updates: Partial<Connection>) => void;
   onUpdateHighlights: (nodeId: string, verseNum: number, color: HighlightColor, tag?: string) => void;
   onUpdateStickyContent: (nodeId: string, content: string) => void;
   onUpdateStickyCategory: (nodeId: string, category: any) => void;
+  onUpdateStickyColor?: (nodeId: string, color: any) => void;
   onAddPromptAnswer: (nodeId: string, text: string) => void;
   onOpenCrossRefs: (verseRef: string, verseNum: number, nodeId?: string) => void;
   onOpenLexicon: (strongs: string) => void;
@@ -30,6 +33,7 @@ interface InfiniteCanvasProps {
   onOpenCommentary?: (book: string, chapter: number, verse: number, verseText?: string) => void;
   onConnectNodes: (sourceId: string, targetId: string) => void;
   onCursorMove?: (x: number, y: number) => void;
+  onCursorLeave?: () => void;
 }
 
 export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
@@ -43,12 +47,15 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
   onPanChange,
   onZoomChange,
   onSelectNode,
+  onDragStartNode,
   onUpdateNodePosition,
   onDeleteNode,
   onDeleteConnection,
+  onUpdateConnection,
   onUpdateHighlights,
   onUpdateStickyContent,
   onUpdateStickyCategory,
+  onUpdateStickyColor,
   onAddPromptAnswer,
   onOpenCrossRefs,
   onOpenLexicon,
@@ -56,10 +63,12 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
   onOpenCommentary,
   onConnectNodes,
   onCursorMove,
+  onCursorLeave,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
 
   // Node Dragging State
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -70,6 +79,49 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
 
   // Selected Connection
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+
+  // Global Keyboard Shortcuts (Space to Pan, Backspace/Delete to remove, Esc to cancel)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        (activeEl as HTMLElement).isContentEditable
+      );
+      if (isInput) return;
+
+      if (e.code === 'Space' && !e.repeat) {
+        setIsSpacePressed(true);
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedConnectionId) {
+          e.preventDefault();
+          onDeleteConnection(selectedConnectionId);
+          setSelectedConnectionId(null);
+        } else if (selectedNodeId) {
+          e.preventDefault();
+          onDeleteNode(selectedNodeId);
+        }
+      } else if (e.key === 'Escape') {
+        setSelectedConnectionId(null);
+        setConnectingSourceId(null);
+        onSelectNode(null);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [selectedConnectionId, selectedNodeId, onDeleteConnection, onDeleteNode, onSelectNode]);
 
   // Multi-Touch & Pinch-to-Zoom Gesture State for Mobile / Tablet
   const touchState = useRef<{
@@ -111,7 +163,12 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
 
   // Canvas Mouse Down (Panning or Deselect)
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1 || activeTool === 'pan' || (e.button === 0 && e.target === containerRef.current)) {
+    if (
+      e.button === 1 || 
+      activeTool === 'pan' || 
+      isSpacePressed || 
+      (e.button === 0 && e.target === containerRef.current)
+    ) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       onSelectNode(null);
@@ -125,7 +182,10 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
     const clientX = e.clientX;
     const clientY = e.clientY;
 
-    onCursorMove?.(clientX, clientY);
+    // Send world coordinates so peer cursors anchor precisely to cards across different viewport sizes
+    const worldX = Math.round((clientX - pan.x) / zoom);
+    const worldY = Math.round((clientY - pan.y) / zoom);
+    onCursorMove?.(worldX, worldY);
 
     if (rafId.current) cancelAnimationFrame(rafId.current);
     rafId.current = requestAnimationFrame(() => {
@@ -135,9 +195,9 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
           y: clientY - panStart.y,
         });
       } else if (draggingNodeId) {
-        const worldX = (clientX - pan.x) / zoom - dragOffset.x;
-        const worldY = (clientY - pan.y) / zoom - dragOffset.y;
-        onUpdateNodePosition(draggingNodeId, Math.round(worldX), Math.round(worldY));
+        const dragWorldX = (clientX - pan.x) / zoom - dragOffset.x;
+        const dragWorldY = (clientY - pan.y) / zoom - dragOffset.y;
+        onUpdateNodePosition(draggingNodeId, Math.round(dragWorldX), Math.round(dragWorldY));
       }
     });
   };
@@ -227,6 +287,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
       const touch = e.touches[0];
       const worldX = (touch.clientX - pan.x) / zoom;
       const worldY = (touch.clientY - pan.y) / zoom;
+      onDragStartNode?.(node.id);
       setDraggingNodeId(node.id);
       setDragOffset({
         x: worldX - node.x,
@@ -238,7 +299,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
 
   // Node Drag Start
   const handleNodeMouseDown = (e: React.MouseEvent, node: CanvasNode) => {
-    if (activeTool === 'pan') return;
+    if (activeTool === 'pan' || isSpacePressed) return;
 
     if (connectingSourceId) {
       // Connect completed
@@ -251,6 +312,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
 
     e.stopPropagation();
     onSelectNode(node.id);
+    onDragStartNode?.(node.id);
 
     // Calculate drag offset inside the node
     const clickWorldX = (e.clientX - pan.x) / zoom;
@@ -277,8 +339,9 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onMouseLeave={() => onCursorLeave?.()}
       className={`w-full h-full relative overflow-hidden touch-none select-none ${
-        isPanning || activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+        isPanning || activeTool === 'pan' || isSpacePressed ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
       }`}
       style={{
         backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.14) 1.5px, transparent 1.5px)',
@@ -310,6 +373,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
               isSelected={selectedConnectionId === conn.id}
               onSelect={() => setSelectedConnectionId(conn.id)}
               onDelete={() => onDeleteConnection(conn.id)}
+              onUpdate={(updates) => onUpdateConnection?.(conn.id, updates)}
             />
           ))}
         </svg>
@@ -360,6 +424,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
                   onDelete={() => onDeleteNode(node.id)}
                   onUpdateContent={(content) => onUpdateStickyContent(node.id, content)}
                   onUpdateCategory={(cat) => onUpdateStickyCategory(node.id, cat)}
+                  onUpdateColor={(col) => onUpdateStickyColor?.(node.id, col)}
                   onStartConnect={handleStartConnect}
                 />
               )}

@@ -9,7 +9,9 @@ import {
   Crosshair,
   BookText,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  WandSparkles,
+  Keyboard
 } from 'lucide-react';
 import type { CanvasNode, ScriptureNodeData, StickyNoteData, LexiconNodeData } from '../../types';
 import { searchLexicon } from '../../data/lexiconData';
@@ -26,6 +28,8 @@ interface CommandPaletteModalProps {
   onOpenCommentary: () => void;
   onOpenExport: () => void;
   onCenterCanvas: () => void;
+  onTidyCanvas?: () => void;
+  onOpenShortcutsHelp?: () => void;
 }
 
 interface PaletteItem {
@@ -49,6 +53,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onOpenCommentary,
   onOpenExport,
   onCenterCanvas,
+  onTidyCanvas,
+  onOpenShortcutsHelp,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -209,14 +215,44 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     {
       id: 'action-center',
       category: 'Actions',
-      title: 'Re-Center Canvas Viewport',
-      subtitle: 'Reset pan and zoom to view workspace',
+      title: 'Fit View / Frame All Cards (F)',
+      subtitle: 'Auto-center pan and zoom to frame all study cards',
       icon: <Crosshair className="w-4 h-4 text-indigo-400" />,
       action: () => {
         onCenterCanvas();
         onClose();
       },
     },
+    ...(onTidyCanvas
+      ? [
+          {
+            id: 'action-tidy',
+            category: 'Actions' as const,
+            title: 'Tidy & Auto-Arrange Canvas (Shift+A)',
+            subtitle: 'Neatly organize Scripture, Lexicon, and Note cards into columns',
+            icon: <WandSparkles className="w-4 h-4 text-indigo-400" />,
+            action: () => {
+              onTidyCanvas();
+              onClose();
+            },
+          },
+        ]
+      : []),
+    ...(onOpenShortcutsHelp
+      ? [
+          {
+            id: 'action-shortcuts',
+            category: 'Actions' as const,
+            title: 'Keyboard Shortcuts & Gestures Guide (?)',
+            subtitle: 'View all canvas hotkeys, tools, and small group tips',
+            icon: <Keyboard className="w-4 h-4 text-sky-400" />,
+            action: () => {
+              onOpenShortcutsHelp();
+              onClose();
+            },
+          },
+        ]
+      : []),
   ];
 
   actions.forEach((a) => {

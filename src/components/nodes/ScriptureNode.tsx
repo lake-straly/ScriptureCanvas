@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ScriptureNodeData, HighlightColor } from '../../types';
-import { BookOpen, GitFork, Info, Trash2, Sparkles, MessageSquare, BookMarked, BookText } from 'lucide-react';
+import { BookOpen, GitFork, Info, Trash2, Sparkles, MessageSquare, BookMarked, BookText, Copy, Check } from 'lucide-react';
 
 interface ScriptureNodeProps {
   node: ScriptureNodeData;
@@ -43,7 +43,17 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
   const [showContext, setShowContext] = useState(false);
   const [showLexiconBadges, setShowLexiconBadges] = useState(true);
   const [activeVerse, setActiveVerse] = useState<number | null>(null);
+  const [copiedVerseNum, setCopiedVerseNum] = useState<number | null>(null);
   const { passage, highlights } = node;
+
+  const handleCopyVerse = (verseNum: number, text: string) => {
+    const formatted = `${passage.reference} (v${verseNum}) - "${text}" [${passage.translation}]`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(formatted);
+      setCopiedVerseNum(verseNum);
+      setTimeout(() => setCopiedVerseNum(null), 2000);
+    }
+  };
 
   const handleVerseClick = (verseNum: number) => {
     setActiveVerse(verseNum === activeVerse ? null : verseNum);
@@ -277,6 +287,26 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 text-slate-400">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyVerse(verse.verseNum, verse.text);
+                      }}
+                      className="hover:text-sky-300 flex items-center gap-1 text-[11px] transition-colors"
+                      title="Copy verse reference & text"
+                    >
+                      {copiedVerseNum === verse.verseNum ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400 font-medium">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
                     {onOpenCommentary && (
                       <button
                         onClick={(e) => {

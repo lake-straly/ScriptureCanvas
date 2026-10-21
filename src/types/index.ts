@@ -135,6 +135,8 @@ export interface Collaborator {
   cursor: { x: number; y: number };
   activeNodeId?: string;
   isOnline: boolean;
+  lastSeen?: number;
+  hidden?: boolean;
 }
 
 export interface UserProfile {
@@ -155,13 +157,16 @@ export type PeerMessage = (
   | { type: 'PEER_LEAVE'; userId: string }
   | { type: 'PEER_HEARTBEAT'; user: UserProfile; cursor?: { x: number; y: number } }
   | { type: 'CURSOR_MOVE'; userId: string; cursor: { x: number; y: number } }
+  | { type: 'CURSOR_LEAVE'; userId: string }
   | { type: 'NODE_MOVE'; nodeId: string; x: number; y: number; senderId: string }
   | { type: 'NODE_ADD'; node: CanvasNode; senderId: string }
   | { type: 'NODE_DELETE'; nodeId: string; senderId: string }
   | { type: 'CONNECTION_ADD'; connection: Connection; senderId: string }
+  | { type: 'CONNECTION_UPDATE'; connection: Connection; senderId: string }
   | { type: 'CONNECTION_DELETE'; connectionId: string; senderId: string }
+  | { type: 'SPOTLIGHT_SUMMON'; senderId: string; senderName: string; senderColor: string; worldCenter: { x: number; y: number }; zoom: number }
   | { type: 'HIGHLIGHT_UPDATE'; nodeId: string; verseNum: number; color: HighlightColor; tag?: string; author: string; senderId: string }
-  | { type: 'STICKY_UPDATE'; nodeId: string; content?: string; category?: any; senderId: string }
+  | { type: 'STICKY_UPDATE'; nodeId: string; content?: string; category?: any; color?: any; senderId: string }
   | { type: 'PROMPT_ANSWER'; nodeId: string; answer: { id: string; author: string; text: string; timestamp: string }; senderId: string }
   | { type: 'TITLE_UPDATE'; title: string; senderId: string }
   | { type: 'SYNC_REQUEST'; senderId: string }

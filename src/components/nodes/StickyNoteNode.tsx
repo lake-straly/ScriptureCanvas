@@ -9,6 +9,7 @@ interface StickyNoteProps {
   onDelete: () => void;
   onUpdateContent: (content: string) => void;
   onUpdateCategory: (cat: StickyNoteData['category']) => void;
+  onUpdateColor?: (color: StickyNoteData['color']) => void;
   onStartConnect: (nodeId: string) => void;
 }
 
@@ -52,11 +53,20 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
   onDelete,
   onUpdateContent,
   onUpdateCategory,
+  onUpdateColor,
   onStartConnect,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(node.content);
   const style = COLOR_STYLES[node.color || 'amber'];
+
+  const noteColors: { id: StickyNoteData['color']; bg: string }[] = [
+    { id: 'amber', bg: 'bg-amber-400' },
+    { id: 'blue', bg: 'bg-sky-400' },
+    { id: 'emerald', bg: 'bg-emerald-400' },
+    { id: 'rose', bg: 'bg-rose-400' },
+    { id: 'purple', bg: 'bg-purple-400' },
+  ];
 
   const categories: StickyNoteData['category'][] = [
     'Observation',
@@ -95,6 +105,23 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {isSelected && onUpdateColor && (
+            <div className="flex items-center gap-1 mr-1 px-1 py-0.5 rounded-full bg-black/10 dark:bg-white/10 animate-in fade-in duration-150">
+              {noteColors.map((nc) => (
+                <button
+                  key={nc.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateColor(nc.id);
+                  }}
+                  className={`w-2.5 h-2.5 rounded-full ${nc.bg} transition-transform hover:scale-125 ${
+                    node.color === nc.id ? 'ring-1 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                  }`}
+                  title={`Color: ${nc.id}`}
+                />
+              ))}
+            </div>
+          )}
           <button
             onClick={() => onStartConnect(node.id)}
             className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 opacity-70 hover:opacity-100 transition-opacity"

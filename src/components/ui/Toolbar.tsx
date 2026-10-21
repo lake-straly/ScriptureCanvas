@@ -8,7 +8,11 @@ import {
   BookText,
   MessageSquareQuote, 
   GitFork, 
-  Highlighter 
+  Highlighter,
+  Undo2,
+  Redo2,
+  WandSparkles,
+  Keyboard
 } from 'lucide-react';
 import type { HighlightColor } from '../../types';
 
@@ -23,6 +27,12 @@ interface ToolbarProps {
   onOpenLexiconDrawer?: () => void;
   onOpenCommentaryDrawer?: () => void;
   onAddPrompt: (category: 'Observation' | 'Interpretation' | 'Application') => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onTidyCanvas?: () => void;
+  onOpenShortcutsHelp?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -36,6 +46,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenLexiconDrawer,
   onOpenCommentaryDrawer,
   onAddPrompt,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onTidyCanvas,
+  onOpenShortcutsHelp,
 }) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showStickyPicker, setShowStickyPicker] = useState(false);
@@ -318,7 +334,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               ? 'bg-sky-600 text-white shadow-md'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
-          title="Connect Link Tool (L)"
+          title="Connect Link Tool (C)"
         >
           <GitFork className="w-4 h-4" />
         </button>
@@ -365,6 +381,54 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </div>
           )}
         </div>
+
+        <div className="w-[1px] h-6 bg-slate-800 mx-0.5 sm:mx-1 flex-shrink-0" />
+
+        {/* Undo / Redo Buttons */}
+        {onUndo && (
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-900 disabled:opacity-30 disabled:pointer-events-none transition-all flex-shrink-0"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+        )}
+
+        {onRedo && (
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-900 disabled:opacity-30 disabled:pointer-events-none transition-all flex-shrink-0"
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Tidy / Auto-Arrange Board */}
+        {onTidyCanvas && (
+          <button
+            onClick={onTidyCanvas}
+            className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-indigo-300 hover:text-white hover:bg-indigo-500/20 transition-all flex items-center gap-1.5 text-xs font-semibold flex-shrink-0"
+            title="Tidy & Auto-Arrange All Cards (Shift+A)"
+          >
+            <WandSparkles className="w-4 h-4 text-indigo-400" />
+            <span className="hidden lg:inline">Tidy</span>
+          </button>
+        )}
+
+        {/* Keyboard Shortcuts Cheat-Sheet */}
+        {onOpenShortcutsHelp && (
+          <button
+            onClick={onOpenShortcutsHelp}
+            className="p-2 rounded-xl text-slate-400 hover:text-sky-300 hover:bg-slate-900 transition-all flex-shrink-0"
+            title="Keyboard Shortcuts & Guide (?)"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Collaborator, UserProfile } from '../../types';
-import { BookOpen, ZoomIn, ZoomOut, Share2, LayoutGrid, ExternalLink, Download, Search } from 'lucide-react';
+import { BookOpen, ZoomIn, ZoomOut, Share2, LayoutGrid, ExternalLink, Download, Search, Maximize2, Radio } from 'lucide-react';
 import { openTestCollaboratorWindow } from '../../services/multiplayer';
 
 interface NavbarProps {
@@ -18,6 +18,9 @@ interface NavbarProps {
   onOpenShare: () => void;
   onOpenExport?: () => void;
   onOpenCommandPalette?: () => void;
+  followingPeerId?: string | null;
+  onJumpToPeer?: (peer: Collaborator) => void;
+  onGatherGroup?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,6 +38,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenShare,
   onOpenExport,
   onOpenCommandPalette,
+  followingPeerId,
+  onJumpToPeer,
+  onGatherGroup,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(roomTitle);
@@ -157,21 +163,45 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Collaborators Stack (compact on mobile) */}
         <div className="hidden sm:flex items-center gap-1.5 pr-2 border-r border-slate-800">
           {collaborators.length > 0 ? (
-            <div className="flex items-center -space-x-1.5">
-              {collaborators.map((c) => (
-                <div
-                  key={c.id}
-                  className="w-7 h-7 rounded-full border-2 border-slate-950 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white/10"
-                  style={{ backgroundColor: c.color }}
-                  title={`${c.name} (Active in study)`}
-                >
-                  {c.avatar}
-                </div>
-              ))}
-              <div className="pl-3 text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center -space-x-1.5">
+                {collaborators.map((c) => {
+                  const isFollowing = followingPeerId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => onJumpToPeer?.(c)}
+                      className={`w-7 h-7 rounded-full border-2 border-slate-950 flex items-center justify-center text-[10px] font-bold text-white shadow-sm transition-all cursor-pointer hover:scale-110 hover:z-20 ${
+                        isFollowing
+                          ? 'ring-2 ring-sky-400 scale-110 z-10'
+                          : 'ring-1 ring-white/10'
+                      }`}
+                      style={{ backgroundColor: c.color }}
+                      title={
+                        isFollowing
+                          ? `Following ${c.name} (Click to stop following)`
+                          : `Click to jump to & follow ${c.name}`
+                      }
+                    >
+                      {c.avatar}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span>{collaborators.length + 1} online</span>
               </div>
+              {onGatherGroup && (
+                <button
+                  onClick={onGatherGroup}
+                  className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-[11px] font-semibold text-amber-300 transition-all flex items-center gap-1 shadow-sm"
+                  title="Broadcast Spotlight: Invite all group members to jump to your current view"
+                >
+                  <Radio className="w-3 h-3 text-amber-400 animate-pulse" />
+                  <span className="hidden xl:inline">Spotlight</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/60 border border-slate-800/80 text-[11px] text-slate-400">
@@ -192,28 +222,36 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Zoom Controls (hidden on mobile since touch users pinch to zoom) */}
+        {/* Zoom & View Controls */}
         <div className="hidden md:flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-xl p-1 text-slate-300">
           <button
             onClick={onZoomOut}
             className="p-1 rounded-lg hover:bg-slate-800 hover:text-white transition-colors"
-            title="Zoom out"
+            title="Zoom out (-)"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onResetZoom}
             className="px-1.5 text-[11px] font-mono text-slate-400 hover:text-white transition-colors"
-            title="Reset to 100%"
+            title="Reset to 100% (Ctrl+0)"
           >
             {Math.round(zoom * 100)}%
           </button>
           <button
             onClick={onZoomIn}
             className="p-1 rounded-lg hover:bg-slate-800 hover:text-white transition-colors"
-            title="Zoom in"
+            title="Zoom in (+)"
           >
             <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-[1px] h-3.5 bg-slate-800 mx-0.5" />
+          <button
+            onClick={onCenterCanvas}
+            className="p-1 rounded-lg hover:bg-slate-800 hover:text-sky-300 text-slate-400 transition-colors"
+            title="Fit View / Frame All Cards (F)"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
           </button>
         </div>
 
