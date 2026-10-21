@@ -142,20 +142,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Current User Badge */}
         <button
           onClick={onOpenShare}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors text-xs text-slate-200"
+          className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors text-xs text-slate-200"
           title="Click to edit display name or color"
         >
           <div
-            className="w-4 h-4 rounded-full border border-white/20 flex items-center justify-center text-[9px] font-bold text-white"
+            className="w-4 h-4 rounded-full border border-white/20 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
             style={{ backgroundColor: currentUser.color }}
           >
             {currentUser.avatar}
           </div>
-          <span className="font-medium max-w-[100px] truncate">{currentUser.name}</span>
+          <span className="font-medium max-w-[80px] sm:max-w-[100px] truncate hidden xs:inline sm:inline">{currentUser.name}</span>
         </button>
 
-        {/* Collaborators Stack */}
-        <div className="flex items-center gap-1.5 pr-2 border-r border-slate-800">
+        {/* Collaborators Stack (compact on mobile) */}
+        <div className="hidden sm:flex items-center gap-1.5 pr-2 border-r border-slate-800">
           {collaborators.length > 0 ? (
             <div className="flex items-center -space-x-1.5">
               {collaborators.map((c) => (
@@ -181,8 +181,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Zoom Controls */}
-        <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-xl p-1 text-slate-300">
+        {/* Search trigger on mobile */}
+        {onOpenCommandPalette && (
+          <button
+            onClick={onOpenCommandPalette}
+            className="md:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+            title="Search cards & verses"
+          >
+            <Search className="w-4 h-4 text-sky-400" />
+          </button>
+        )}
+
+        {/* Zoom Controls (hidden on mobile since touch users pinch to zoom) */}
+        <div className="hidden md:flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-xl p-1 text-slate-300">
           <button
             onClick={onZoomOut}
             className="p-1 rounded-lg hover:bg-slate-800 hover:text-white transition-colors"
@@ -209,10 +220,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Share / Invite Button */}
         <button
           onClick={onOpenShare}
-          className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5"
+          className="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5 flex-shrink-0"
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span>Collaborate</span>
+          <span className="hidden sm:inline">Collaborate</span>
         </button>
       </div>
     </header>

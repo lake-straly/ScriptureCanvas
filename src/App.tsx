@@ -92,10 +92,25 @@ export const App: React.FC = () => {
   // Room Password Lock state
   const [isRoomLocked, setIsRoomLocked] = useState(() => !isRoomUnlocked(roomCode));
 
-  // Canvas Viewport State (persisted across reloads)
+  // Canvas Viewport State (persisted across reloads, responsive initial zoom for mobile)
   const [pan, setPan] = useState(boardData.pan);
-  const [zoom, setZoom] = useState(boardData.zoom);
+  const [zoom, setZoom] = useState(() => {
+    if (boardData.zoom && boardData.zoom !== 1) return boardData.zoom;
+    if (typeof window !== 'undefined' && window.innerWidth < 640) return 0.72;
+    return 1;
+  });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  // Synchronize browser URL bar so ?room= is always present when sharing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('room') !== roomCode) {
+        url.searchParams.set('room', roomCode);
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+  }, [roomCode]);
 
   // Auto-save board state to localStorage to prevent progress loss on accidental refresh
   useEffect(() => {
@@ -998,8 +1013,8 @@ export const App: React.FC = () => {
         onAddPrompt={handleAddPrompt}
       />
 
-      {/* MiniMap in Bottom-Left */}
-      <div className="absolute bottom-6 left-6 z-20">
+      {/* MiniMap in Bottom-Left (hidden on mobile phones to free canvas space) */}
+      <div className="hidden sm:block absolute bottom-6 left-6 z-20">
         <MiniMap
           nodes={nodes}
           pan={pan}

@@ -59,8 +59,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   ];
 
   return (
-    <div className="absolute bottom-6 inset-x-0 flex justify-center items-center pointer-events-none z-30 select-none">
-      <div className="pointer-events-auto bg-slate-950/90 backdrop-blur-2xl border border-slate-800/90 rounded-2xl shadow-2xl p-1.5 flex items-center gap-1">
+    <div className="absolute bottom-4 sm:bottom-6 inset-x-0 flex justify-center items-center pointer-events-none z-30 select-none px-2">
+      <div className="pointer-events-auto bg-slate-950/95 backdrop-blur-2xl border border-slate-800/90 rounded-2xl shadow-2xl p-1 sm:p-1.5 flex items-center gap-0.5 sm:gap-1 max-w-[calc(100vw-16px)] overflow-x-auto no-scrollbar">
         {/* Pointer / Hand toggle */}
         <button
           onClick={() => setActiveTool('select')}
@@ -86,22 +86,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Hand className="w-4 h-4" />
         </button>
 
-        <div className="w-[1px] h-6 bg-slate-800 mx-1" />
+        <div className="w-[1px] h-6 bg-slate-800 mx-0.5 sm:mx-1 flex-shrink-0" />
 
         {/* Add Scripture Passage */}
         <button
           onClick={onAddScripture}
-          className="px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-2 text-xs font-semibold group"
+          className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-1.5 sm:gap-2 text-xs font-semibold group flex-shrink-0"
           title="Add Scripture Passage"
         >
           <div className="p-1 rounded-lg bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20">
             <BookOpen className="w-3.5 h-3.5" />
           </div>
-          <span>Passage</span>
+          <span className="hidden md:inline">Passage</span>
         </button>
 
         {/* Add Sticky Note Dropdown */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => {
               setShowStickyPicker(!showStickyPicker);
@@ -109,13 +109,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               setShowPromptPicker(false);
               setShowLexiconPicker(false);
             }}
-            className="px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-2 text-xs font-semibold group"
+            className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-1.5 sm:gap-2 text-xs font-semibold group"
             title="Add Sticky Note"
           >
             <div className="p-1 rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20">
               <StickyNote className="w-3.5 h-3.5" />
             </div>
-            <span>Note</span>
+            <span className="hidden md:inline">Note</span>
           </button>
 
           {showStickyPicker && (
@@ -136,7 +136,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </div>
 
         {/* Add Word Study / Lexicon */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => {
               setShowLexiconPicker(!showLexiconPicker);
@@ -144,13 +144,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               setShowStickyPicker(false);
               setShowPromptPicker(false);
             }}
-            className="px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-2 text-xs font-semibold group"
+            className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-1.5 sm:gap-2 text-xs font-semibold group"
             title="Word Study / Lexicon"
           >
             <div className="p-1 rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20">
               <BookMarked className="w-3.5 h-3.5" />
             </div>
-            <span>Word Study</span>
+            <span className="hidden md:inline">Word Study</span>
           </button>
 
           {showLexiconPicker && (
@@ -251,16 +251,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               setShowPromptPicker(false);
               setShowLexiconPicker(false);
             }}
-            className="px-3 py-2 rounded-xl text-slate-300 hover:text-amber-200 hover:bg-slate-900 transition-all flex items-center gap-2 text-xs font-semibold group"
+            className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-300 hover:text-amber-200 hover:bg-slate-900 transition-all flex items-center gap-1.5 sm:gap-2 text-xs font-semibold group flex-shrink-0"
             title="Open Biblical Commentary Notes"
           >
             <BookText className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">Commentary</span>
+            <span className="hidden md:inline">Commentary</span>
           </button>
         )}
 
         {/* Add Socratic Question */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => {
               setShowPromptPicker(!showPromptPicker);
@@ -268,13 +268,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               setShowStickyPicker(false);
               setShowLexiconPicker(false);
             }}
-            className="px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-2 text-xs font-semibold group"
+            className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 transition-all flex items-center gap-1.5 sm:gap-2 text-xs font-semibold group"
             title="Discussion Prompt"
           >
             <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20">
               <MessageSquareQuote className="w-3.5 h-3.5" />
             </div>
-            <span>Question</span>
+            <span className="hidden md:inline">Question</span>
           </button>
 
           {showPromptPicker && (

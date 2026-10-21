@@ -17,7 +17,8 @@ import type { CanvasState, UserProfile } from '../../types';
 import { 
   openTestCollaboratorWindow, 
   getRoomPassword, 
-  setRoomPassword 
+  setRoomPassword,
+  hashPassword 
 } from '../../services/multiplayer';
 
 interface ShareModalProps {
@@ -58,8 +59,24 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+  const getInviteUrl = (withPassword = false) => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('room', roomCode);
+    if (roomPassword && roomPassword.trim()) {
+      if (withPassword) {
+        url.searchParams.set('pwd', encodeURIComponent(roomPassword.trim()));
+      } else {
+        url.searchParams.set('locked', '1');
+        url.searchParams.set('pwdHash', hashPassword(roomPassword.trim()));
+      }
+    }
+    return url.toString();
+  };
+
+  const inviteUrlString = getInviteUrl(false);
+
+  const handleCopyLink = (withPassword = false) => {
+    navigator.clipboard.writeText(getInviteUrl(withPassword));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -216,17 +233,22 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
         {/* Room Invite Link */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-300">Room Invite Link</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-300">Room Invite Link</label>
+            <span className="text-[10px] text-slate-400">
+              {roomPassword ? '🔐 Requires password to join' : '🌐 Open access'}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
-            <div className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 truncate">
-              {window.location.origin}?room={roomCode}
+            <div className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 truncate select-all">
+              {inviteUrlString}
             </div>
             <button
-              onClick={handleCopyLink}
-              className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-md flex-shrink-0"
+              onClick={() => handleCopyLink(false)}
+              className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-md flex-shrink-0"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied Link' : 'Copy'}</span>
+              <span>{copied ? 'Copied Link!' : 'Copy Link'}</span>
             </button>
           </div>
         </div>

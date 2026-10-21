@@ -84,27 +84,88 @@ export function updateLocalUser(name: string, color?: string): UserProfile {
 }
 
 // Room Password Handling
+export function hashPassword(password: string): string {
+  try {
+    return btoa(encodeURIComponent(password.trim()));
+  } catch {
+    return password.trim();
+  }
+}
+
+export function unhashPassword(hash: string): string | null {
+  try {
+    return decodeURIComponent(atob(hash));
+  } catch {
+    return null;
+  }
+}
+
 export function getRoomPassword(roomCode: string): string | null {
-  return localStorage.getItem(`room_pwd_${roomCode}`) || null;
+  const local = localStorage.getItem(`room_pwd_${roomCode}`);
+  if (local) return local;
+
+  // Check URL query parameters (?pwd=... or ?pwdHash=...)
+  if (typeof window !== 'undefined') {
+    const p = new URLSearchParams(window.location.search);
+    const directPwd = p.get('pwd');
+    if (directPwd) {
+      return decodeURIComponent(directPwd);
+    }
+    const pwdHash = p.get('pwdHash');
+    if (pwdHash) {
+      return unhashPassword(pwdHash);
+    }
+  }
+  return null;
 }
 
 export function setRoomPassword(roomCode: string, password: string): void {
   if (!password.trim()) {
     localStorage.removeItem(`room_pwd_${roomCode}`);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('locked');
+      url.searchParams.delete('pwdHash');
+      url.searchParams.delete('pwd');
+      window.history.replaceState({}, '', url.toString());
+    }
   } else {
     localStorage.setItem(`room_pwd_${roomCode}`, password.trim());
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('locked', '1');
+      url.searchParams.set('pwdHash', hashPassword(password));
+      window.history.replaceState({}, '', url.toString());
+    }
   }
 }
 
 export function isRoomUnlocked(roomCode: string): boolean {
+  if (typeof window !== 'undefined') {
+    const p = new URLSearchParams(window.location.search);
+    const directPwd = p.get('pwd');
+    if (directPwd) {
+      sessionStorage.setItem(`room_unlocked_${roomCode}`, 'true');
+      return true;
+    }
+  }
+
   const setPwd = getRoomPassword(roomCode);
-  if (!setPwd) return true; // No password required
+  if (!setPwd) {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('locked') === '1') {
+        return sessionStorage.getItem(`room_unlocked_${roomCode}`) === 'true';
+      }
+    }
+    return true; // No password required
+  }
   return sessionStorage.getItem(`room_unlocked_${roomCode}`) === 'true';
 }
 
 export function unlockRoom(roomCode: string, passwordAttempt: string): boolean {
   const setPwd = getRoomPassword(roomCode);
-  if (!setPwd || setPwd === passwordAttempt.trim()) {
+  if (!setPwd || setPwd.toLowerCase() === passwordAttempt.trim().toLowerCase()) {
     sessionStorage.setItem(`room_unlocked_${roomCode}`, 'true');
     return true;
   }
@@ -162,32 +223,40 @@ export class PeerSyncChannel {
     if (typeof window !== 'undefined') {
       try {
         const cleanRoomId = `bible-study-${roomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'general'}`;
-        this.trysteroRoom = joinRoom({ appId: 'scripture-canvas-p2p' }, cleanRoomId);
+        const rtcConfig = {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' }
+          ]
+        };
 
-        const [sendAction, getAction] = this.trysteroRoom.makeAction('peerMessage');
-        this.sendTrysteroAction = sendAction;
+        this.trysteroRoom = joinRoom({ appId: 'scripture-canvas-p2p', rtcConfig }, cleanRoomId);
 
-        getAction((data: any) => {
+        const action = this.trysteroRoom.makeAction('peerMessage');
+        this.sendTrysteroAction = (msg: PeerMessage) => action.send(msg);
+
+        action.onMessage = (data: any) => {
           if (data && typeof data === 'object') {
             this.onMessageCallback(data as PeerMessage);
           }
-        });
+        };
 
-        this.trysteroRoom.onPeerJoin((peerId: string) => {
+        this.trysteroRoom.onPeerJoin = (peerId: string) => {
           console.log(`[ScriptureCanvas P2P] New remote peer connected: ${peerId}`);
           this.broadcast({
             type: 'PEER_JOIN',
             user: this.localUser,
           });
-        });
+        };
 
-        this.trysteroRoom.onPeerLeave((peerId: string) => {
+        this.trysteroRoom.onPeerLeave = (peerId: string) => {
           console.log(`[ScriptureCanvas P2P] Remote peer disconnected: ${peerId}`);
           this.onMessageCallback({
             type: 'PEER_LEAVE',
             userId: peerId,
           });
-        });
+        };
       } catch (err) {
         console.warn('[ScriptureCanvas P2P] WebRTC room notice:', err);
       }
