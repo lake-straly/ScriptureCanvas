@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import type { ScriptureNodeData, HighlightColor } from '../../types';
 import { BookOpen, GitFork, Info, Trash2, Sparkles, MessageSquare, BookMarked, BookText, Copy, Check } from 'lucide-react';
 
@@ -44,7 +44,48 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
   const [showLexiconBadges, setShowLexiconBadges] = useState(true);
   const [activeVerse, setActiveVerse] = useState<number | null>(null);
   const [copiedVerseNum, setCopiedVerseNum] = useState<number | null>(null);
+  const [cardWidth, setCardWidth] = useState<number>(500);
+  const [versesMaxHeight, setVersesMaxHeight] = useState<number>(520);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const versesRef = useRef<HTMLDivElement>(null);
   const { passage, highlights } = node;
+
+  const startResizeCard = (
+    e: React.PointerEvent,
+    dir: 'right' | 'bottom' | 'corner'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = cardRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const scale = rect.width / (el.offsetWidth || 500) || 1;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = cardWidth;
+    const startH = versesRef.current ? versesRef.current.offsetHeight : versesMaxHeight;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = (moveEvent.clientX - startX) / scale;
+      const dy = (moveEvent.clientY - startY) / scale;
+
+      if (dir === 'right' || dir === 'corner') {
+        setCardWidth(Math.round(Math.min(1100, Math.max(340, startW + dx))));
+      }
+      if (dir === 'bottom' || dir === 'corner') {
+        setVersesMaxHeight(Math.round(Math.min(2400, Math.max(180, startH + dy))));
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   const handleCopyVerse = (verseNum: number, text: string) => {
     const formatted = `${passage.reference} (v${verseNum}) - "${text}" [${passage.translation}]`;
@@ -64,11 +105,13 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
 
   return (
     <div
+      ref={cardRef}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      className={`w-[500px] rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl select-text ${
+      style={{ width: `${cardWidth}px` }}
+      className={`relative rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl select-text ${
         isSelected
           ? 'border-sky-500 shadow-sky-500/15 ring-2 ring-sky-500/30'
           : 'border-slate-800 hover:border-slate-700'
@@ -175,7 +218,11 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
       )}
 
       {/* Verses Container */}
-      <div className="p-4 max-h-[520px] overflow-y-auto space-y-3.5 text-slate-200 text-sm leading-relaxed">
+      <div
+        ref={versesRef}
+        style={{ maxHeight: `${versesMaxHeight}px` }}
+        className="p-4 overflow-y-auto space-y-3.5 text-slate-200 text-sm leading-relaxed"
+      >
         {passage.verses.map((verse) => {
           const verseHighlights = highlights[verse.verseNum] || [];
           const hasHighlight = verseHighlights.length > 0;
@@ -345,6 +392,51 @@ export const ScriptureNode: React.FC<ScriptureNodeProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* Right Edge Resize Handle */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'right')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute top-3 bottom-6 -right-1.5 w-3 cursor-ew-resize z-30 group touch-none"
+        title="Drag edge to resize card width"
+      >
+        <div className="h-full w-0.5 mx-auto bg-transparent group-hover:bg-sky-400/70 transition-colors" />
+      </div>
+
+      {/* Bottom Edge Resize Handle */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'bottom')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute left-4 right-7 -bottom-1.5 h-3 cursor-ns-resize z-30 group touch-none"
+        title="Drag bottom edge to resize card height"
+      >
+        <div className="w-full h-0.5 my-auto bg-transparent group-hover:bg-sky-400/70 transition-colors" />
+      </div>
+
+      {/* Bottom-Right Corner Resize Grip */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'corner')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setCardWidth(500);
+          setVersesMaxHeight(520);
+        }}
+        className="absolute bottom-1 right-1 w-6 h-6 cursor-nwse-resize z-40 touch-none flex items-end justify-end p-1 text-slate-500 hover:text-sky-400 transition-colors"
+        title="Drag corner to resize card (Double-click to reset)"
+      >
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M11 1L1 11M11 5.5L5.5 11M11 10L10 11"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
       </div>
     </div>
   );

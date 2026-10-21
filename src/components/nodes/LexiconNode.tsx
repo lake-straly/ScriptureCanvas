@@ -1,3 +1,4 @@
+import React, { useState, useRef } from 'react';
 import type { LexiconNodeData } from '../../types';
 import { Sparkles, Trash2, GitFork, BookMarked } from 'lucide-react';
 
@@ -17,14 +18,43 @@ export const LexiconNode: React.FC<LexiconNodeProps> = ({
   onStartConnect,
 }) => {
   const { entry } = node;
+  const [cardWidth, setCardWidth] = useState<number>(300);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const startResizeCard = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = cardRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const scale = rect.width / (el.offsetWidth || 300) || 1;
+    const startX = e.clientX;
+    const startW = cardWidth;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = (moveEvent.clientX - startX) / scale;
+      setCardWidth(Math.round(Math.min(720, Math.max(250, startW + dx))));
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   return (
     <div
+      ref={cardRef}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      className={`w-[300px] rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border backdrop-blur-xl shadow-2xl p-4 select-text ${
+      style={{ width: `${cardWidth}px` }}
+      className={`relative rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border backdrop-blur-xl shadow-2xl p-4 select-text ${
         isSelected
           ? 'border-amber-400 ring-2 ring-amber-400/20 shadow-amber-500/10'
           : 'border-slate-800 hover:border-slate-700'
@@ -98,6 +128,37 @@ export const LexiconNode: React.FC<LexiconNodeProps> = ({
             </p>
           </div>
         )}
+      </div>
+
+      {/* Right Edge Resize Handle */}
+      <div
+        onPointerDown={startResizeCard}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute top-3 bottom-6 -right-1.5 w-3 cursor-ew-resize z-30 touch-none"
+        title="Drag edge to resize card width"
+      />
+
+      {/* Bottom-Right Corner Resize Grip */}
+      <div
+        onPointerDown={startResizeCard}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setCardWidth(300);
+        }}
+        className="absolute bottom-1 right-1 w-6 h-6 cursor-nwse-resize z-40 touch-none flex items-end justify-end p-1 text-slate-500 hover:text-amber-400 transition-colors"
+        title="Drag corner to resize card (Double-click to reset)"
+      >
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M11 1L1 11M11 5.5L5.5 11M11 10L10 11"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
       </div>
     </div>
   );

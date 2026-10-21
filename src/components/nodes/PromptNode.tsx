@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import type { PromptNodeData } from '../../types';
 import { Send, Trash2, GitFork, MessageSquareQuote } from 'lucide-react';
 
@@ -27,6 +27,47 @@ export const PromptNode: React.FC<PromptNodeProps> = ({
   onStartConnect,
 }) => {
   const [newReply, setNewReply] = useState('');
+  const [cardWidth, setCardWidth] = useState<number>(400);
+  const [threadMaxHeight, setThreadMaxHeight] = useState<number>(220);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  const startResizeCard = (
+    e: React.PointerEvent,
+    dir: 'right' | 'bottom' | 'corner'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = cardRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const scale = rect.width / (el.offsetWidth || 400) || 1;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = cardWidth;
+    const startH = threadRef.current ? threadRef.current.offsetHeight : threadMaxHeight;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = (moveEvent.clientX - startX) / scale;
+      const dy = (moveEvent.clientY - startY) / scale;
+
+      if (dir === 'right' || dir === 'corner') {
+        setCardWidth(Math.round(Math.min(850, Math.max(300, startW + dx))));
+      }
+      if (dir === 'bottom' || dir === 'corner') {
+        setThreadMaxHeight(Math.round(Math.min(1200, Math.max(100, startH + dy))));
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,11 +78,13 @@ export const PromptNode: React.FC<PromptNodeProps> = ({
 
   return (
     <div
+      ref={cardRef}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      className={`w-[400px] rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl p-4 select-text ${
+      style={{ width: `${cardWidth}px` }}
+      className={`relative rounded-2xl bg-slate-900/95 border backdrop-blur-xl shadow-2xl p-4 select-text ${
         isSelected
           ? 'border-indigo-400 ring-2 ring-indigo-400/20 shadow-indigo-500/10'
           : 'border-slate-800 hover:border-slate-700'
@@ -95,7 +138,11 @@ export const PromptNode: React.FC<PromptNodeProps> = ({
       </div>
 
       {/* Group Discussion Thread */}
-      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+      <div
+        ref={threadRef}
+        style={{ maxHeight: `${threadMaxHeight}px` }}
+        className="space-y-2 overflow-y-auto pr-1"
+      >
         {node.answers && node.answers.length > 0 ? (
           node.answers.map((ans) => (
             <div
@@ -133,6 +180,47 @@ export const PromptNode: React.FC<PromptNodeProps> = ({
           <Send className="w-3.5 h-3.5" />
         </button>
       </form>
+
+      {/* Right Edge Resize Handle */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'right')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute top-3 bottom-6 -right-1.5 w-3 cursor-ew-resize z-30 touch-none"
+        title="Drag edge to resize card width"
+      />
+
+      {/* Bottom Edge Resize Handle */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'bottom')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute left-4 right-7 -bottom-1.5 h-3 cursor-ns-resize z-30 touch-none"
+        title="Drag bottom edge to resize discussion height"
+      />
+
+      {/* Bottom-Right Corner Resize Grip */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'corner')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setCardWidth(400);
+          setThreadMaxHeight(220);
+        }}
+        className="absolute bottom-1 right-1 w-6 h-6 cursor-nwse-resize z-40 touch-none flex items-end justify-end p-1 text-slate-500 hover:text-indigo-400 transition-colors"
+        title="Drag corner to resize card (Double-click to reset)"
+      >
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M11 1L1 11M11 5.5L5.5 11M11 10L10 11"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
     </div>
   );
 };

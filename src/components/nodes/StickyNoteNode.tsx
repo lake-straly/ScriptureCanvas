@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import type { StickyNoteData } from '../../types';
 import { Trash2, GitFork, Tag } from 'lucide-react';
 
@@ -58,7 +58,47 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(node.content);
+  const [cardWidth, setCardWidth] = useState<number>(272);
+  const [cardMinHeight, setCardMinHeight] = useState<number>(170);
+  const cardRef = useRef<HTMLDivElement>(null);
   const style = COLOR_STYLES[node.color || 'amber'];
+
+  const startResizeCard = (
+    e: React.PointerEvent,
+    dir: 'right' | 'bottom' | 'corner'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = cardRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const scale = rect.width / (el.offsetWidth || 272) || 1;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = cardWidth;
+    const startH = el.offsetHeight || cardMinHeight;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = (moveEvent.clientX - startX) / scale;
+      const dy = (moveEvent.clientY - startY) / scale;
+
+      if (dir === 'right' || dir === 'corner') {
+        setCardWidth(Math.round(Math.min(720, Math.max(220, startW + dx))));
+      }
+      if (dir === 'bottom' || dir === 'corner') {
+        setCardMinHeight(Math.round(Math.min(1000, Math.max(140, startH + dy))));
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   const noteColors: { id: StickyNoteData['color']; bg: string }[] = [
     { id: 'amber', bg: 'bg-amber-400' },
@@ -82,11 +122,13 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
 
   return (
     <div
+      ref={cardRef}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      className={`w-64 rounded-xl border p-4 shadow-xl backdrop-blur-md select-text ${style.bg} ${style.border} ${
+      style={{ width: `${cardWidth}px`, minHeight: `${cardMinHeight}px` }}
+      className={`relative flex flex-col rounded-xl border p-4 shadow-xl backdrop-blur-md select-text ${style.bg} ${style.border} ${
         isSelected ? 'ring-2 ring-sky-400 scale-102' : 'hover:shadow-2xl'
       }`}
     >
@@ -184,6 +226,47 @@ export const StickyNoteNode: React.FC<StickyNoteProps> = ({
           <span>{node.targetVerseRef}</span>
         </div>
       )}
+
+      {/* Right Edge Resize Handle */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'right')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute top-2 bottom-5 -right-1.5 w-3 cursor-ew-resize z-30 touch-none"
+        title="Drag edge to resize note"
+      />
+
+      {/* Bottom Edge Resize Handle */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'bottom')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        className="absolute left-3 right-6 -bottom-1.5 h-3 cursor-ns-resize z-30 touch-none"
+        title="Drag bottom edge to resize note"
+      />
+
+      {/* Bottom-Right Corner Resize Grip */}
+      <div
+        onPointerDown={(e) => startResizeCard(e, 'corner')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setCardWidth(272);
+          setCardMinHeight(170);
+        }}
+        className="absolute bottom-1 right-1 w-5 h-5 cursor-nwse-resize z-40 touch-none flex items-end justify-end p-0.5 opacity-50 hover:opacity-100 transition-opacity"
+        title="Drag corner to resize note (Double-click to reset)"
+      >
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M11 1L1 11M11 5.5L5.5 11M11 10L10 11"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
     </div>
   );
 };
