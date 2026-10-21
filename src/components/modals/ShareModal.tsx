@@ -11,7 +11,11 @@ import {
   ExternalLink, 
   Lock, 
   Unlock, 
-  UserCheck 
+  UserCheck,
+  Radio,
+  LogOut,
+  ArrowRight,
+  ShieldCheck
 } from 'lucide-react';
 import type { CanvasState, UserProfile } from '../../types';
 import { 
@@ -24,6 +28,9 @@ interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomCode: string;
+  onStartCollaborativeRoom: (customCode?: string) => string;
+  onJoinRoom: (codeToJoin: string) => void;
+  onLeaveRoom: () => void;
   currentUser: UserProfile;
   onUpdateCurrentUser: (name: string, color?: string) => void;
   isSimulatingCollab: boolean;
@@ -46,6 +53,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   isOpen,
   onClose,
   roomCode,
+  onStartCollaborativeRoom,
+  onJoinRoom,
+  onLeaveRoom,
   currentUser,
   onUpdateCurrentUser,
   isSimulatingCollab,
@@ -55,23 +65,47 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [tempName, setTempName] = useState(currentUser.name);
-  const [roomPassword, setRoomPasswordState] = useState(getRoomPassword(roomCode) || '');
+  const [roomPassword, setRoomPasswordState] = useState(
+    roomCode ? getRoomPassword(roomCode) || '' : ''
+  );
   const [showPasswordSaved, setShowPasswordSaved] = useState(false);
+  const [customRoomInput, setCustomRoomInput] = useState('');
+  const [joinRoomInput, setJoinRoomInput] = useState('');
 
   if (!isOpen) return null;
 
-  const getInviteUrl = () => {
+  const isLiveRoom = Boolean(roomCode);
+
+  const getInviteUrl = (code = roomCode) => {
     const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('room', roomCode);
+    if (code) {
+      url.searchParams.set('room', code);
+    }
     return url.toString();
   };
 
   const inviteUrlString = getInviteUrl();
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(getInviteUrl());
+    if (!roomCode) return;
+    navigator.clipboard.writeText(getInviteUrl(roomCode));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCreateLiveRoom = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const activeCode = onStartCollaborativeRoom(customRoomInput.trim() || undefined);
+    setRoomPasswordState(getRoomPassword(activeCode) || '');
+    setCustomRoomInput('');
+  };
+
+  const handleJoinExistingRoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinRoomInput.trim()) return;
+    onJoinRoom(joinRoomInput.trim());
+    setJoinRoomInput('');
+    onClose();
   };
 
   const handleSaveName = (e: React.FormEvent) => {
@@ -83,6 +117,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   const handleSavePassword = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!roomCode) return;
     const cleanPwd = roomPassword.trim();
     setRoomPassword(roomCode, cleanPwd);
     onPasswordChange?.(cleanPwd);
@@ -91,7 +126,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   };
 
   const handleLaunchTestPeer = () => {
-    openTestCollaboratorWindow(roomCode);
+    const code = roomCode || onStartCollaborativeRoom();
+    openTestCollaboratorWindow(code);
   };
 
   const handleExportJson = () => {
@@ -115,7 +151,11 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-wide">Multiplayer & Collaboration</h2>
-              <p className="text-xs text-slate-400">Real-time multi-user study room (No account required)</p>
+              <p className="text-xs text-slate-400">
+                {isLiveRoom
+                  ? `Connected to live room #${roomCode}`
+                  : 'Currently in Private Study mode (local to your browser)'}
+              </p>
             </div>
           </div>
           <button
@@ -126,37 +166,175 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           </button>
         </div>
 
-        {/* 1-Click Multiplayer Verification Card */}
-        <div className="p-4 rounded-xl bg-gradient-to-r from-sky-950/60 to-indigo-950/60 border border-sky-500/30 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold text-sky-300">
-              <Users className="w-4 h-4 text-sky-400" />
-              <span>Verify Real-Time Multiplayer Now</span>
+        {/* PRIVATE MODE vs LIVE ROOM GATE */}
+        {!isLiveRoom ? (
+          <div className="space-y-4">
+            {/* Convert Private Study to Live Collaborative Room */}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-sky-950/70 via-slate-900 to-indigo-950/70 border border-sky-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-sky-300">
+                  <Radio className="w-4 h-4 text-sky-400" />
+                  <span>Convert Private Board to Live Collaborative Room</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  Private Mode
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Your workspace is currently private and offline from other users. Start a live room to generate a shareable link and study together in real time.
+              </p>
+              <form onSubmit={handleCreateLiveRoom} className="flex flex-col sm:flex-row gap-2 pt-1">
+                <input
+                  type="text"
+                  value={customRoomInput}
+                  onChange={(e) => setCustomRoomInput(e.target.value)}
+                  placeholder="Optional custom room name (e.g. ROMANS-STUDY)"
+                  className="flex-1 px-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700/80 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono uppercase"
+                />
+                <button
+                  type="submit"
+                  className="py-2 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-sky-600/30 flex-shrink-0 cursor-pointer"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Start Live Room</span>
+                </button>
+              </form>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              Live Cross-Tab Sync
-            </span>
+
+            {/* Join Existing Room by Code */}
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Have a Room Code from a Friend?</span>
+              </label>
+              <form onSubmit={handleJoinExistingRoom} className="flex gap-2">
+                <input
+                  type="text"
+                  value={joinRoomInput}
+                  onChange={(e) => setJoinRoomInput(e.target.value)}
+                  placeholder="Enter room code (e.g. GRACE-412)"
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono uppercase"
+                />
+                <button
+                  type="submit"
+                  disabled={!joinRoomInput.trim()}
+                  className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-xs text-white font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Join</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </div>
           </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Click below to open a 2nd collaborator window (as "Pastor Mark"). Place both windows side-by-side to watch real-time cursors, card movements, highlights, and notes sync instantly!
-          </p>
-          <button
-            onClick={handleLaunchTestPeer}
-            className="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-sky-600/30"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>Open 2nd Collaborator Window</span>
-          </button>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Active Live Room Status Bar */}
+            <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-bold text-emerald-300 font-mono truncate">
+                    #{roomCode}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Live P2P session active
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={onLeaveRoom}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-500/40 text-slate-300 hover:text-rose-300 text-xs font-medium transition-colors flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+                title="Disconnect from this shared room and return to Private Study mode"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Go Private</span>
+              </button>
+            </div>
+
+            {/* Room Invite Link */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300">Room Invite Link</label>
+                <span className="text-[10px] text-slate-400">
+                  {roomPassword ? '🔐 Requires password to join' : '🌐 Open access'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 truncate select-all">
+                  {inviteUrlString}
+                </div>
+                <button
+                  onClick={handleCopyLink}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-md flex-shrink-0 cursor-pointer"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied Link!' : 'Copy Link'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Room Password Protection */}
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
+                <div className="flex items-center gap-1.5">
+                  {roomPassword ? <Lock className="w-4 h-4 text-emerald-400" /> : <Unlock className="w-4 h-4 text-slate-400" />}
+                  <span>Room Password Protection (Optional)</span>
+                </div>
+                {showPasswordSaved && (
+                  <span className="text-[10px] text-emerald-400 font-medium">Saved!</span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Set a room password so only people with the secret phrase can join this room. Leave empty for open access.
+              </p>
+
+              <form onSubmit={handleSavePassword} className="flex gap-2">
+                <input
+                  type="password"
+                  value={roomPassword}
+                  onChange={(e) => setRoomPasswordState(e.target.value)}
+                  placeholder="Enter room password (leave blank to unlock)"
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-medium transition-colors shadow-sm cursor-pointer"
+                >
+                  Set Password
+                </button>
+              </form>
+            </div>
+
+            {/* 1-Click Multiplayer Verification Card */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/50 to-indigo-950/50 border border-sky-500/25 flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-300">
+                  <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Test 2-Player Window</span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Opens a 2nd tab connected to #{roomCode} to preview live cursors and sync.
+                </p>
+              </div>
+              <button
+                onClick={handleLaunchTestPeer}
+                className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-all flex-shrink-0 shadow-sm cursor-pointer"
+              >
+                Open 2nd Tab
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Temporary Profile / Display Name */}
         <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
             <div className="flex items-center gap-1.5">
               <UserCheck className="w-4 h-4 text-amber-400" />
-              <span>Your Temporary Guest Name:</span>
+              <span>Your Display Name & Cursor Color:</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-mono">No password or signup needed</span>
+            <span className="text-[11px] text-slate-400 font-mono">No signup needed</span>
           </div>
 
           <form onSubmit={handleSaveName} className="flex gap-2">
@@ -169,7 +347,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             />
             <button
               type="submit"
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-medium transition-colors border border-slate-700"
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-medium transition-colors border border-slate-700 cursor-pointer"
             >
               Update
             </button>
@@ -184,67 +362,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   key={col}
                   type="button"
                   onClick={() => onUpdateCurrentUser(currentUser.name, col)}
-                  className={`w-5 h-5 rounded-full transition-transform ${
+                  className={`w-5 h-5 rounded-full transition-transform cursor-pointer ${
                     currentUser.color === col ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
                   }`}
                   style={{ backgroundColor: col }}
                 />
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Room Password Protection */}
-        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
-            <div className="flex items-center gap-1.5">
-              {roomPassword ? <Lock className="w-4 h-4 text-emerald-400" /> : <Unlock className="w-4 h-4 text-slate-400" />}
-              <span>Room Password Protection (Optional)</span>
-            </div>
-            {showPasswordSaved && (
-              <span className="text-[10px] text-emerald-400 font-medium">Saved!</span>
-            )}
-          </div>
-          <p className="text-[11px] text-slate-400">
-            Set an instance password so random people cannot enter without knowing the secret phrase. Leave empty for open access.
-          </p>
-
-          <form onSubmit={handleSavePassword} className="flex gap-2">
-            <input
-              type="password"
-              value={roomPassword}
-              onChange={(e) => setRoomPasswordState(e.target.value)}
-              placeholder="e.g. fellowship777 (leave blank to unlock)"
-              className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-            />
-            <button
-              type="submit"
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-medium transition-colors shadow-sm"
-            >
-              Set Password
-            </button>
-          </form>
-        </div>
-
-        {/* Room Invite Link */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-slate-300">Room Invite Link</label>
-            <span className="text-[10px] text-slate-400">
-              {roomPassword ? '🔐 Requires password to join' : '🌐 Open access'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 truncate select-all">
-              {inviteUrlString}
-            </div>
-            <button
-              onClick={handleCopyLink}
-              className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-md flex-shrink-0"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied Link!' : 'Copy Link'}</span>
-            </button>
           </div>
         </div>
 
@@ -261,7 +385,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           </div>
           <button
             onClick={onToggleCollabSimulation}
-            className="text-emerald-400 hover:text-emerald-300 transition-colors p-1"
+            className="text-emerald-400 hover:text-emerald-300 transition-colors p-1 cursor-pointer"
           >
             {isSimulatingCollab ? (
               <ToggleRight className="w-7 h-7 text-emerald-400" />
@@ -275,7 +399,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         <div className="pt-2 border-t border-slate-800">
           <button
             onClick={handleExportJson}
-            className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-left flex items-center justify-between transition-colors text-xs text-slate-300 hover:text-white"
+            className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-left flex items-center justify-between transition-colors text-xs text-slate-300 hover:text-white cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <Download className="w-4 h-4 text-sky-400" />

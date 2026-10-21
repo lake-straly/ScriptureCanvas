@@ -133,14 +133,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        <button
-          onClick={handleLaunchTestPeer}
-          className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-xs font-semibold text-emerald-300 transition-all flex items-center gap-1.5 shadow-sm"
-          title="Opens a 2nd collaborator window to verify real-time multiplayer instantly"
-        >
-          <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Test 2-Player</span>
-        </button>
+        {roomCode && (
+          <button
+            onClick={handleLaunchTestPeer}
+            className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-xs font-semibold text-emerald-300 transition-all flex items-center gap-1.5 shadow-sm"
+            title="Opens a 2nd collaborator window to verify real-time multiplayer instantly"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Test 2-Player</span>
+          </button>
+        )}
       </div>
 
       {/* Right: User Profile, Collaborators, Zoom, and Share */}
@@ -203,11 +205,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
             </div>
+          ) : roomCode ? (
+            <button
+              onClick={onOpenShare}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 hover:bg-emerald-950/60 border border-emerald-500/30 text-[11px] text-emerald-300 font-mono transition-colors cursor-pointer"
+              title="Live Collaborative Room Active — Click to copy link or manage room"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>#{roomCode}</span>
+            </button>
           ) : (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/60 border border-slate-800/80 text-[11px] text-slate-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>Solo</span>
-            </div>
+            <button
+              onClick={onOpenShare}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/60 hover:bg-slate-800 border border-slate-800/80 text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+              title="Private Study Mode (Local Only) — Click to start a live collaborative room"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              <span>Private</span>
+            </button>
           )}
         </div>
 

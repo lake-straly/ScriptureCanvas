@@ -44,22 +44,26 @@ import { RoomConnectingScreen } from './components/ui/RoomConnectingScreen';
 import { RoomLockScreen } from './components/ui/RoomLockScreen';
 
 export const App: React.FC = () => {
-  // Extract roomCode from URL search param e.g. ?room=FELLOWSHIP-777
-  const [roomCode] = useState(() => {
+  // Extract roomCode from URL search param e.g. ?room=FELLOWSHIP-777 (empty string = Private Study mode)
+  const [roomCode, setRoomCode] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      return p.get('room') || 'SCRIPTURE-ROOM-777';
+      return (p.get('room') || '').trim().toUpperCase();
     }
-    return 'SCRIPTURE-ROOM-777';
+    return '';
   });
 
-  const STORAGE_KEY = `scripture_study_room_${roomCode}`;
+  const STORAGE_KEY = roomCode
+    ? `scripture_study_room_${roomCode}`
+    : 'scripture_study_private_board';
 
   // Load saved session from localStorage or fallback to default template (Romans 8)
   const getInitialBoard = () => {
     const defaultTemplate = STUDY_TEMPLATES[0];
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved =
+        localStorage.getItem(STORAGE_KEY) ||
+        (!roomCode ? localStorage.getItem('scripture_study_room_SCRIPTURE-ROOM-777') : null);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.nodes && Object.keys(parsed.nodes).length > 0) {
@@ -95,7 +99,9 @@ export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => getLocalUser());
 
   // Connection & Room Security State ('connecting' | 'locked' | 'ready')
+  // Private Study mode (no roomCode) is immediately 'ready' with zero delay
   const [connectionState, setConnectionState] = useState<'connecting' | 'locked' | 'ready'>(() => {
+    if (!roomCode) return 'ready';
     const localPwd = getRoomPassword(roomCode);
     if (localPwd) {
       return isRoomUnlocked(roomCode) ? 'ready' : 'locked';
@@ -124,12 +130,17 @@ export const App: React.FC = () => {
   });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Synchronize browser URL bar so ?room= is always present when sharing
+  // Synchronize browser URL bar only when a collaborative room is active
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
-      if (url.searchParams.get('room') !== roomCode) {
-        url.searchParams.set('room', roomCode);
+      if (roomCode) {
+        if (url.searchParams.get('room') !== roomCode) {
+          url.searchParams.set('room', roomCode);
+          window.history.replaceState({}, '', url.toString());
+        }
+      } else if (url.searchParams.has('room')) {
+        url.searchParams.delete('room');
         window.history.replaceState({}, '', url.toString());
       }
     }
@@ -836,8 +847,13 @@ export const App: React.FC = () => {
     }
   }, [roomCode, showToast]);
 
-  // Initialize Real-time PeerSyncChannel
+  // Initialize Real-time PeerSyncChannel ONLY when a collaborative roomCode is active
   useEffect(() => {
+    if (!roomCode) {
+      peerSyncRef.current = null;
+      return;
+    }
+
     const channel = new PeerSyncChannel(roomCode, currentUser, handlePeerMessage);
     peerSyncRef.current = channel;
 
@@ -849,6 +865,75 @@ export const App: React.FC = () => {
       peerSyncRef.current = null;
     };
   }, [roomCode, currentUser, handlePeerMessage]);
+
+  // Convert current private board into a live collaborative room
+  const handleStartCollaborativeRoom = useCallback(
+    (customCode?: string): string => {
+      const sanitizedCustom = customCode
+        ? customCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '-')
+        : '';
+      const words = ['GRACE', 'BEREAN', 'SELAH', 'SHALOM', 'LOGOS', 'AGAPE', 'ZION'];
+      const randomWord = words[Math.floor(Math.random() * words.length)];
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      const nextCode = sanitizedCustom || `${randomWord}-${randomNum}`;
+
+      try {
+        localStorage.setItem(
+          `scripture_study_room_${nextCode}`,
+          JSON.stringify({
+            nodes: stateRef.current.nodes,
+            connections: stateRef.current.connections,
+            roomTitle: stateRef.current.roomTitle,
+            pan,
+            zoom,
+            lastSaved: Date.now(),
+          })
+        );
+      } catch (e) {
+        console.warn('Could not persist converted room:', e);
+      }
+
+      setRealPeers({});
+      setRoomCode(nextCode);
+      setConnectionState('ready');
+      showToast(`Live collaborative room #${nextCode} started!`, 'success');
+      return nextCode;
+    },
+    [pan, zoom, showToast]
+  );
+
+  // Join an existing collaborative room by code
+  const handleJoinRoom = useCallback(
+    (codeToJoin: string) => {
+      const cleanCode = codeToJoin.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '-');
+      if (!cleanCode) return;
+
+      setRealPeers({});
+      setFollowingPeerId(null);
+      setRoomCode(cleanCode);
+
+      const localPwd = getRoomPassword(cleanCode);
+      if (localPwd && !isRoomUnlocked(cleanCode)) {
+        setConnectionState('locked');
+      } else {
+        setConnectionState('connecting');
+      }
+      showToast(`Joining room #${cleanCode}...`, 'info');
+    },
+    [showToast]
+  );
+
+  // Leave collaborative room and return to Private Study mode
+  const handleLeaveRoom = useCallback(() => {
+    peerSyncRef.current?.destroy();
+    peerSyncRef.current = null;
+    setRealPeers({});
+    setFollowingPeerId(null);
+    setSpotlightBanner(null);
+    setRoomCode('');
+    setConnectionState('ready');
+    showToast('Returned to Private Study mode', 'info');
+  }, [showToast]);
 
   // Update profile handler
   const handleUpdateCurrentUser = (name: string, color?: string) => {
@@ -1894,6 +1979,9 @@ export const App: React.FC = () => {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         roomCode={roomCode}
+        onStartCollaborativeRoom={handleStartCollaborativeRoom}
+        onJoinRoom={handleJoinRoom}
+        onLeaveRoom={handleLeaveRoom}
         currentUser={currentUser}
         onUpdateCurrentUser={handleUpdateCurrentUser}
         isSimulatingCollab={isSimulatingCollab}
